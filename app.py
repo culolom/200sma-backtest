@@ -1,6 +1,7 @@
 # app.py — LRS 回測系統（台股+美股統一使用 yfinance，含拆股調整 + 美化報表）
 
 import os
+import re
 import datetime as dt
 
 import numpy as np
@@ -32,11 +33,11 @@ st.markdown("<h1 style='margin-bottom:0.5em;'>📊 Leverage Rotation Strategy �
 def is_taiwan_stock(raw_symbol: str) -> bool:
     """
     判斷是否當成台股處理：
-    - 純數字（0050, 2330, 00878...）視為台股
+    - 純數字或「數字+字母」(0050, 2330, 00878, 00631L...) 視為台股
     - 其它 (QQQ, SPY...) 視為海外商品
     """
     s = raw_symbol.strip().upper()
-    return s.isdigit()
+    return bool(re.match(r"^\d+[A-Z]*$", s))
 
 
 def normalize_for_yfinance(raw_symbol: str) -> str:
@@ -46,7 +47,7 @@ def normalize_for_yfinance(raw_symbol: str) -> str:
     - 其它：原樣回傳（QQQ, SPY...）
     """
     s = raw_symbol.strip().upper()
-    if s.isdigit():
+    if is_taiwan_stock(s):
         return s + ".TW"
     return s
 
