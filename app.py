@@ -559,6 +559,34 @@ if st.button("開始回測 🚀"):
 
 
 
+    # ================================
+    # 7）LRS 策略信號回放（逐筆解釋）
+    # ================================
+    st.markdown("## 🎯 LRS 策略信號回放")
+
+    records = []
+    for i in range(1, len(df)):
+        if df["Signal"].iloc[i] == 1:
+            reason = (
+                f"收盤價 {df['Price'].iloc[i]:.2f} > MA({window}) {df['MA'].iloc[i]:.2f}，"
+                f"由空頭 → 多頭，產生買進訊號"
+            )
+            records.append([df.index[i], "買進", df["Price"].iloc[i], reason])
+
+        elif df["Signal"].iloc[i] == -1:
+            reason = (
+                f"收盤價 {df['Price'].iloc[i]:.2f} < MA({window}) {df['MA'].iloc[i]:.2f}，"
+                f"由多頭 → 空頭，產生賣出訊號"
+            )
+            records.append([df.index[i], "賣出", df["Price"].iloc[i], reason])
+
+    signal_df = pd.DataFrame(
+        records,
+        columns=["日期", "動作", "價格", "理由"]
+    )
+
+    st.dataframe(signal_df, use_container_width=True)
+
 
 
 
