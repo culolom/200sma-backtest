@@ -666,66 +666,76 @@ if st.button("開始回測 🚀"):
 
 
 # ================================
-# 📌 回測總覽 Summary（LRS vs Buy & Hold）
+# 📌 回測總覽 Summary（上下比較版）
 # ================================
 st.markdown("## 📌 回測總覽 Summary")
 
-# 讓 NaN 變成 0 或 —
 def fmt_pct(x):
     return "—" if np.isnan(x) else f"{x:.2%}"
 
 def fmt_delta(x):
     return f"{x:.2f}%" if not np.isnan(x) else "—"
 
-col_L, col_R = st.columns(2)
+# 讓畫面更緊湊的方式：用 container 包上下兩段
+summary = st.container()
 
-# --------------------------------------------------
-# 🔶 左邊：LRS 策略 KPI
-# --------------------------------------------------
-with col_L:
+with summary:
+    # ---------------------------------------
+    # 🔶 LRS 策略（在上）
+    # ---------------------------------------
     st.markdown("### 🚀 LRS 策略")
 
-    st.metric(
-        label="最終資產（LRS）",
-        value=format_currency(equity_lrs_final),
-        delta=fmt_pct(final_return_lrs),
-    )
+    l1, l2, l3 = st.columns(3)
 
-    st.metric(
-        label="年化報酬（CAGR）",
-        value=fmt_pct(cagr_lrs),
-        delta=fmt_delta((cagr_lrs - cagr_bh) * 100),
-    )
+    with l1:
+        st.metric(
+            label="最終資產（LRS）",
+            value=format_currency(equity_lrs_final),
+            delta=fmt_pct(final_return_lrs),
+        )
 
-    st.metric(
-        label="最大回撤（LRS）",
-        value=fmt_pct(mdd_lrs),
-        delta=fmt_delta((mdd_bh - mdd_lrs) * 100),
-        delta_color="inverse"
-    )
+    with l2:
+        st.metric(
+            label="年化報酬（CAGR）",
+            value=fmt_pct(cagr_lrs),
+            delta=fmt_delta((cagr_lrs - cagr_bh) * 100),
+        )
 
-# --------------------------------------------------
-# 🔵 右邊：Buy & Hold KPI
-# --------------------------------------------------
-with col_R:
+    with l3:
+        st.metric(
+            label="最大回撤（LRS）",
+            value=fmt_pct(mdd_lrs),
+            delta=fmt_delta((mdd_bh - mdd_lrs) * 100),
+            delta_color="inverse",
+        )
+
+    st.markdown("---")  # 分隔線（上下比較的視覺關鍵）
+
+    # ---------------------------------------
+    # 🔵 Buy & Hold（在下）
+    # ---------------------------------------
     st.markdown("### 📘 Buy & Hold")
 
-    st.metric(
-        label="最終資產（Buy & Hold）",
-        value=format_currency(equity_bh_final),
-        delta=fmt_pct(final_return_bh),
-    )
+    b1, b2, b3 = st.columns(3)
 
-    st.metric(
-        label="年化報酬（CAGR）",
-        value=fmt_pct(cagr_bh),
-        delta=fmt_delta((cagr_bh - cagr_lrs) * 100),
-    )
+    with b1:
+        st.metric(
+            label="最終資產（Buy & Hold）",
+            value=format_currency(equity_bh_final),
+            delta=fmt_pct(final_return_bh),
+        )
 
-    st.metric(
-        label="最大回撤（Buy & Hold）",
-        value=fmt_pct(mdd_bh),
-        delta=fmt_delta((mdd_lrs - mdd_bh) * 100),
-        delta_color="inverse"
-    )
+    with b2:
+        st.metric(
+            label="年化報酬（CAGR）",
+            value=fmt_pct(cagr_bh),
+            delta=fmt_delta((cagr_bh - cagr_lrs) * 100),
+        )
 
+    with b3:
+        st.metric(
+            label="最大回撤（Buy & Hold）",
+            value=fmt_pct(mdd_bh),
+            delta=fmt_delta((mdd_lrs - mdd_bh) * 100),
+            delta_color="inverse",
+        )
