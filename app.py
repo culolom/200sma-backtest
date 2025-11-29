@@ -396,6 +396,63 @@ if st.button("開始回測 🚀"):
             delta_color="inverse",
         )
 
+    # ================================
+    # 2）Heatmap 指標比較表（穩定版）
+    # ================================
+    st.markdown("## 📊 指標比較（LRS vs Buy & Hold）")
+
+    col_hm1, col_hm2 = st.columns(2)
+
+    # 1) 顯示文字表
+    display_df = pd.DataFrame([
+        ["最終資產", f"{equity_lrs_final:,.0f} 元", f"{equity_bh_final:,.0f} 元"],
+        ["總報酬", f"{final_return_lrs:.2%}", f"{final_return_bh:.2%}"],
+        ["年化報酬", f"{cagr_lrs:.2%}" if not np.isnan(cagr_lrs) else "—",
+                     f"{cagr_bh:.2%}" if not np.isnan(cagr_bh) else "—"],
+        ["最大回撤", f"{mdd_lrs:.2%}" if not np.isnan(mdd_lrs) else "—",
+                     f"{mdd_bh:.2%}" if not np.isnan(mdd_bh) else "—"],
+        ["年化波動率", f"{vol_lrs:.2%}" if not np.isnan(vol_lrs) else "—",
+                      f"{vol_bh:.2%}" if not np.isnan(vol_bh) else "—"],
+        ["夏普值", f"{sharpe_lrs:.2f}" if not np.isnan(sharpe_lrs) else "—",
+                  f"{sharpe_bh:.2f}" if not np.isnan(sharpe_bh) else "—"],
+        ["索提諾值", f"{sortino_lrs:.2f}" if not np.isnan(sortino_lrs) else "—",
+                    f"{sortino_bh:.2f}" if not np.isnan(sortino_bh) else "—"],
+    ], columns=["指標名稱", "LRS 策略", "Buy & Hold"])
+
+    with col_hm1:
+        st.markdown("#### 📘 指標（文字表）")
+        st.table(display_df)
+
+    # 2) 熱力圖（純數字 Heatmap）
+    heatmap_df = pd.DataFrame({
+        "LRS": [
+            equity_lrs_final,
+            final_return_lrs,
+            cagr_lrs,
+            mdd_lrs,
+            vol_lrs,
+            sharpe_lrs,
+            sortino_lrs,
+        ],
+        "BH": [
+            equity_bh_final,
+            final_return_bh,
+            cagr_bh,
+            mdd_bh,
+            vol_bh,
+            sharpe_bh,
+            sortino_bh,
+        ],
+    }, index=[
+        "最終資產","總報酬","年化報酬","最大回撤","年化波動率","夏普值","索提諾值"
+    ])
+
+    with col_hm2:
+        st.markdown("#### 🔥 指標（Heatmap）")
+        st.dataframe(
+            heatmap_df.style.background_gradient(cmap="Blues"),
+            use_container_width=True
+        )
 
 
     # ================================
@@ -499,6 +556,7 @@ if st.button("開始回測 🚀"):
     # 完成訊息
     # ================================
     st.success("✅ 回測完成！（台股＋美股統一使用 yfinance，自動拆股調整 + 專業儀表板呈現）")
+
 
 
 
