@@ -397,84 +397,86 @@ if st.button("開始回測 🚀"):
     # 2）KPI Summary Cards（LRS vs Buy&Hold）
     # ================================
 
-    st.markdown("## 📌 回測總覽 Summary")
-    
-    asset_gap_pct = ((equity_lrs_final / equity_bh_final) - 1) * 100 if equity_bh_final != 0 else 0.0
-    cagr_delta_pct = (cagr_lrs - cagr_bh) * 100 if (not np.isnan(cagr_lrs) and not np.isnan(cagr_bh)) else 0.0
-    vol_delta_pct = (vol_lrs - vol_bh) * 100 if (not np.isnan(vol_lrs) and not np.isnan(vol_bh)) else 0.0
-    mdd_delta_pct = (mdd_lrs - mdd_bh) * 100 if (not np.isnan(mdd_lrs) and not np.isnan(mdd_bh)) else 0.0
-    
-    # -------------------------------
-    # 上排：LRS
-    # -------------------------------
-    row_lrs = st.columns(4)
-    
-    with row_lrs[0]:
+
+st.markdown("## 📌 回測總覽 Summary")
+
+asset_gap_pct = ((equity_lrs_final / equity_bh_final) - 1) * 100 if equity_bh_final != 0 else 0.0
+cagr_delta_pct = (cagr_lrs - cagr_bh) * 100 if (not np.isnan(cagr_lrs) and not np.isnan(cagr_bh)) else 0.0
+vol_delta_pct = (vol_lrs - vol_bh) * 100 if (not np.isnan(vol_lrs) and not np.isnan(vol_bh)) else 0.0
+mdd_delta_pct = (mdd_lrs - mdd_bh) * 100 if (not np.isnan(mdd_lrs) and not np.isnan(mdd_bh)) else 0.0
+
+# -------------------------------
+# 上排：LRS
+# -------------------------------
+row_lrs = st.columns(4)
+
+with row_lrs[0]:
     st.metric(
         label="最終資產（LRS）",
         value=format_currency(equity_lrs_final),
         delta=f"較 Buy&Hold {asset_gap_pct:+.2f}%"
     )
-    
-    with row_lrs[1]:
+
+with row_lrs[1]:
     st.metric(
         label="年化報酬（CAGR, LRS）",
         value=f"{cagr_lrs:.2%}" if not np.isnan(cagr_lrs) else "—",
         delta=f"較 Buy&Hold {cagr_delta_pct:+.2f}%"
     )
-    
-    with row_lrs[2]:
+
+with row_lrs[2]:
     st.metric(
         label="年化波動率（LRS）",
         value=f"{vol_lrs:.2%}" if not np.isnan(vol_lrs) else "—",
         delta=f"較 Buy&Hold {vol_delta_pct:+.2f}%",
         delta_color="inverse"
     )
-    
-    with row_lrs[3]:
+
+with row_lrs[3]:
     st.metric(
         label="最大回撤（LRS）",
         value=f"{mdd_lrs:.2%}" if not np.isnan(mdd_lrs) else "—",
         delta=f"較 Buy&Hold {mdd_delta_pct:+.2f}%",
         delta_color="inverse"
     )
-    
-    # -------------------------------
-    # 下排：Buy & Hold
-    # -------------------------------
-    row_bh = st.columns(4)
-    
-    with row_bh[0]:
+
+# -------------------------------
+# 下排：Buy & Hold
+# -------------------------------
+row_bh = st.columns(4)
+
+with row_bh[0]:
     st.metric(
         label="最終資產（Buy&Hold）",
         value=format_currency(equity_bh_final),
         delta=f"較 LRS {-asset_gap_pct:+.2f}%",
         delta_color="inverse"
     )
-    
-    with row_bh[1]:
+
+with row_bh[1]:
     st.metric(
         label="年化報酬（CAGR, Buy&Hold）",
         value=f"{cagr_bh:.2%}" if not np.isnan(cagr_bh) else "—",
         delta=f"較 LRS {-cagr_delta_pct:+.2f}%",
         delta_color="inverse"
     )
-    
-    with row_bh[2]:
+
+with row_bh[2]:
     st.metric(
         label="年化波動率（Buy&Hold）",
         value=f"{vol_bh:.2%}" if not np.isnan(vol_bh) else "—",
         delta=f"較 LRS {-vol_delta_pct:+.2f}%",
         delta_color="inverse"
     )
-    
-    with row_bh[3]:
+
+with row_bh[3]:
     st.metric(
         label="最大回撤（Buy&Hold）",
         value=f"{mdd_bh:.2%}" if not np.isnan(mdd_bh) else "—",
         delta=f"較 LRS {-mdd_delta_pct:+.2f}%",
         delta_color="inverse"
     )
+
 
 # ================================
 # 3）交易統計（小卡片）
