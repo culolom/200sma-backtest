@@ -524,9 +524,40 @@ if st.button("開始回測 🚀"):
         )
 
     # ================================
-    # 完成訊息
+    # 6）月度績效熱力圖（ETFDB style）
     # ================================
-    st.success("✅ 回測完成！（台股＋美股統一使用 yfinance，自動拆股調整 + 專業儀表板呈現）")
+    st.markdown("## 📅 月度績效熱力圖")
+
+    # 取月度報酬
+    df_month = df["Equity_LRS"].resample("M").last().pct_change().dropna()
+    df_month.index = df_month.index.to_period("M")
+
+    # 轉成 pivot（Year × Month）
+    month_table = df_month.to_frame("return")
+    month_table["Year"] = month_table.index.year
+    month_table["Month"] = month_table.index.month
+
+    pivot = month_table.pivot(index="Year", columns="Month", values="return")
+    pivot = pivot.sort_index(ascending=False)
+
+    # heatmap（Plotly）
+    heatmap_fig = go.Figure(
+        data=go.Heatmap(
+            z=pivot.values,
+            x=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
+            y=pivot.index,
+            colorscale="RdYlGn",
+            zmin=-0.2,
+            zmax=0.2,
+            colorbar=dict(title="Return", ticksuffix="%"),
+            hovertemplate="年份 %{y}<br>月份 %{x}<br>報酬 %{z:.2%}<extra></extra>",
+        )
+    )
+
+    heatmap_fig.update_layout(height=350, margin=dict(l=20, r=20, t=30, b=20))
+    st.plotly_chart(heatmap_fig, use_container_width=True)
+
+
 
 
 
