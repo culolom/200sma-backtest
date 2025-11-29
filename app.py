@@ -666,76 +666,40 @@ if st.button("開始回測 🚀"):
 
 
 # ================================
-# 📌 回測總覽 Summary（上下比較版）
+# 📊 指標比較（LRS vs Buy & Hold）
 # ================================
-st.markdown("## 📌 回測總覽 Summary")
 
-def fmt_pct(x):
-    return "—" if np.isnan(x) else f"{x:.2%}"
+st.markdown("## 📊 指標比較（LRS vs Buy & Hold）")
 
-def fmt_delta(x):
-    return f"{x:.2f}%" if not np.isnan(x) else "—"
+# 建立 DataFrame
+report_df = pd.DataFrame({
+    "指標名稱": [
+        "最終資產",
+        "總報酬",
+        "年化報酬",
+        "最大回撤",
+        "年化波動率",
+        "夏普值",
+        "索提諾值",
+    ],
+    "LRS 策略": [
+        format_currency(equity_lrs_final),
+        f"{final_return_lrs:.2%}",
+        f"{cagr_lrs:.2%}",
+        f"{mdd_lrs:.2%}",
+        f"{vol_lrs:.2%}" if not np.isnan(vol_lrs) else "—",
+        f"{sharpe_lrs:.2f}" if not np.isnan(sharpe_lrs) else "—",
+        f"{sortino_lrs:.2f}" if not np.isnan(sortino_lrs) else "—",
+    ],
+    "Buy & Hold": [
+        format_currency(equity_bh_final),
+        f"{final_return_bh:.2%}",
+        f"{cagr_bh:.2%}",
+        f"{mdd_bh:.2%}",
+        f"{vol_bh:.2%}" if not np.isnan(vol_bh) else "—",
+        f"{sharpe_bh:.2f}" if not np.isnan(sharpe_bh) else "—",
+        f"{sortino_bh:.2f}" if not np.isnan(sortino_bh) else "—",
+    ],
+})
 
-# 讓畫面更緊湊的方式：用 container 包上下兩段
-summary = st.container()
-
-with summary:
-    # ---------------------------------------
-    # 🔶 LRS 策略（在上）
-    # ---------------------------------------
-    st.markdown("### 🚀 LRS 策略")
-
-    l1, l2, l3 = st.columns(3)
-
-    with l1:
-        st.metric(
-            label="最終資產（LRS）",
-            value=format_currency(equity_lrs_final),
-            delta=fmt_pct(final_return_lrs),
-        )
-
-    with l2:
-        st.metric(
-            label="年化報酬（CAGR）",
-            value=fmt_pct(cagr_lrs),
-            delta=fmt_delta((cagr_lrs - cagr_bh) * 100),
-        )
-
-    with l3:
-        st.metric(
-            label="最大回撤（LRS）",
-            value=fmt_pct(mdd_lrs),
-            delta=fmt_delta((mdd_bh - mdd_lrs) * 100),
-            delta_color="inverse",
-        )
-
-    st.markdown("---")  # 分隔線（上下比較的視覺關鍵）
-
-    # ---------------------------------------
-    # 🔵 Buy & Hold（在下）
-    # ---------------------------------------
-    st.markdown("### 📘 Buy & Hold")
-
-    b1, b2, b3 = st.columns(3)
-
-    with b1:
-        st.metric(
-            label="最終資產（Buy & Hold）",
-            value=format_currency(equity_bh_final),
-            delta=fmt_pct(final_return_bh),
-        )
-
-    with b2:
-        st.metric(
-            label="年化報酬（CAGR）",
-            value=fmt_pct(cagr_bh),
-            delta=fmt_delta((cagr_bh - cagr_lrs) * 100),
-        )
-
-    with b3:
-        st.metric(
-            label="最大回撤（Buy & Hold）",
-            value=fmt_pct(mdd_bh),
-            delta=fmt_delta((mdd_lrs - mdd_bh) * 100),
-            delta_color="inverse",
-        )
+st.dataframe(report_df, use_container_width=True)
