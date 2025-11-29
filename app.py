@@ -366,33 +366,98 @@ if st.button("開始回測 🚀"):
     st.plotly_chart(fig, use_container_width=True)
 
     # ================================
-    # 1）KPI Summary Cards
+    # 1）LRS 策略信號回放（移至圖表下方）
+    # ================================
+    st.markdown("## 🎯 LRS 策略信號回放")
+
+    records = []
+    for i in range(1, len(df)):
+        if df["Signal"].iloc[i] == 1:
+            reason = (
+                f"收盤價 {df['Price'].iloc[i]:.2f} > MA({window}) {df['MA'].iloc[i]:.2f}，"
+                f"由空頭 → 多頭，產生買進訊號"
+            )
+            records.append([df.index[i], "買進", df["Price"].iloc[i], reason])
+
+        elif df["Signal"].iloc[i] == -1:
+            reason = (
+                f"收盤價 {df['Price'].iloc[i]:.2f} < MA({window}) {df['MA'].iloc[i]:.2f}，"
+                f"由多頭 → 空頭，產生賣出訊號"
+            )
+            records.append([df.index[i], "賣出", df["Price"].iloc[i], reason])
+
+    signal_df = pd.DataFrame(
+        records,
+        columns=["日期", "動作", "價格", "理由"]
+    )
+
+    st.dataframe(signal_df, use_container_width=True)
+
+    # ================================
+    # 2）KPI Summary Cards（LRS vs Buy&Hold）
     # ================================
     st.markdown("## 📌 回測總覽 Summary")
 
-    kpi_col1, kpi_col2, kpi_col3 = st.columns(3)
+    asset_gap_pct = ((equity_lrs_final / equity_bh_final) - 1) * 100 if equity_bh_final != 0 else 0.0
+    cagr_delta_pct = (cagr_lrs - cagr_bh) * 100 if (not np.isnan(cagr_lrs) and not np.isnan(cagr_bh)) else 0.0
+    vol_delta_pct = (vol_lrs - vol_bh) * 100 if (not np.isnan(vol_lrs) and not np.isnan(vol_bh)) else 0.0
+    mdd_delta_pct = (mdd_lrs - mdd_bh) * 100 if (not np.isnan(mdd_lrs) and not np.isnan(mdd_bh)) else 0.0
 
-    with kpi_col1:
+    kpi_row1 = st.columns(4)
+    with kpi_row1[0]:
         st.metric(
             label="最終資產（LRS）",
             value=format_currency(equity_lrs_final),
-            delta=f"{final_return_lrs:.2%}",
+            delta=f"較 Buy&Hold {asset_gap_pct:+.2f}%",
         )
-
-    with kpi_col2:
-        delta_cagr = (cagr_lrs - cagr_bh) * 100 if (not np.isnan(cagr_lrs) and not np.isnan(cagr_bh)) else 0.0
+    with kpi_row1[1]:
         st.metric(
-            label="年化報酬（CAGR）",
+            label="最終資產（Buy&Hold）",
+            value=format_currency(equity_bh_final),
+            delta=f"較 LRS {-asset_gap_pct:+.2f}%",
+            delta_color="inverse",
+        )
+    with kpi_row1[2]:
+        st.metric(
+            label="年化報酬（CAGR, LRS）",
             value=f"{cagr_lrs:.2%}" if not np.isnan(cagr_lrs) else "—",
-            delta=f"{delta_cagr:.2f}%",
+            delta=f"較 Buy&Hold {cagr_delta_pct:+.2f}%",
+        )
+    with kpi_row1[3]:
+        st.metric(
+            label="年化報酬（CAGR, Buy&Hold）",
+            value=f"{cagr_bh:.2%}" if not np.isnan(cagr_bh) else "—",
+            delta=f"較 LRS {-cagr_delta_pct:+.2f}%",
+            delta_color="inverse",
         )
 
-    with kpi_col3:
-        delta_mdd = (mdd_bh - mdd_lrs) * 100 if (not np.isnan(mdd_lrs) and not np.isnan(mdd_bh)) else 0.0
+    kpi_row2 = st.columns(4)
+    with kpi_row2[0]:
+        st.metric(
+            label="年化波動率（LRS）",
+            value=f"{vol_lrs:.2%}" if not np.isnan(vol_lrs) else "—",
+            delta=f"較 Buy&Hold {vol_delta_pct:+.2f}%",
+            delta_color="inverse",
+        )
+    with kpi_row2[1]:
+        st.metric(
+            label="年化波動率（Buy&Hold）",
+            value=f"{vol_bh:.2%}" if not np.isnan(vol_bh) else "—",
+            delta=f"較 LRS {-vol_delta_pct:+.2f}%",
+            delta_color="inverse",
+        )
+    with kpi_row2[2]:
         st.metric(
             label="最大回撤（LRS）",
             value=f"{mdd_lrs:.2%}" if not np.isnan(mdd_lrs) else "—",
-            delta=f"{delta_mdd:.2f}%",
+            delta=f"較 Buy&Hold {mdd_delta_pct:+.2f}%",
+            delta_color="inverse",
+        )
+    with kpi_row2[3]:
+        st.metric(
+            label="最大回撤（Buy&Hold）",
+            value=f"{mdd_bh:.2%}" if not np.isnan(mdd_bh) else "—",
+            delta=f"較 LRS {-mdd_delta_pct:+.2f}%",
             delta_color="inverse",
         )
 
@@ -532,38 +597,9 @@ if st.button("開始回測 🚀"):
 
 
 
-    # ================================
-    # 7）LRS 策略信號回放（逐筆解釋）
-    # ================================
-    st.markdown("## 🎯 LRS 策略信號回放")
-
-    records = []
-    for i in range(1, len(df)):
-        if df["Signal"].iloc[i] == 1:
-            reason = (
-                f"收盤價 {df['Price'].iloc[i]:.2f} > MA({window}) {df['MA'].iloc[i]:.2f}，"
-                f"由空頭 → 多頭，產生買進訊號"
-            )
-            records.append([df.index[i], "買進", df["Price"].iloc[i], reason])
-
-        elif df["Signal"].iloc[i] == -1:
-            reason = (
-                f"收盤價 {df['Price'].iloc[i]:.2f} < MA({window}) {df['MA'].iloc[i]:.2f}，"
-                f"由多頭 → 空頭，產生賣出訊號"
-            )
-            records.append([df.index[i], "賣出", df["Price"].iloc[i], reason])
-
-    signal_df = pd.DataFrame(
-        records,
-        columns=["日期", "動作", "價格", "理由"]
-    )
-
-    st.dataframe(signal_df, use_container_width=True)
-
-
 
     # ================================
-    # 8）Sharpe / MDD 儀表板（Gauge）
+    # 7）Sharpe / MDD 儀表板（Gauge）
     # ================================
     st.markdown("## 🧭 Sharpe / MDD 儀表板")
 
@@ -608,7 +644,7 @@ if st.button("開始回測 🚀"):
 
 
     # ================================
-    # 9）Calmar Ratio 儀表板（Gauge）
+    # 8）Calmar Ratio 儀表板（Gauge）
     # ================================
     st.markdown("## 🧨 Calmar Ratio — 報酬 / 風險 綜合指標")
 
