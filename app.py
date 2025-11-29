@@ -305,6 +305,13 @@ if st.button("開始回測 🚀"):
     equity_lrs_final = df["LRS_Capital"].iloc[-1]
     equity_bh_final = df["BH_Capital"].iloc[-1]
 
+    def format_currency(value: float) -> str:
+        """Format currency values safely even when NaN."""
+        return "-" if not np.isfinite(value) else f"{value:,.0f} 元"
+
+    def format_plain_currency(value: float) -> str:
+        return "-" if not np.isfinite(value) else f"{value:,.0f}"
+
     # === 圖表 ===
     st.markdown("<h2 style='margin-top:1em;'>📈 策略績效視覺化</h2>", unsafe_allow_html=True)
     fig = make_subplots(
@@ -375,7 +382,7 @@ kpi_col1, kpi_col2, kpi_col3 = st.columns(3)
 with kpi_col1:
     st.metric(
         label="最終資產（LRS）",
-        value=f"{equity_lrs_final:,.0f} 元",
+        value=format_currency(equity_lrs_final),
         delta=f"{final_return_lrs:.2%}"
     )
 
@@ -401,7 +408,7 @@ with kpi_col3:
 st.markdown("## 📊 指標比較（LRS vs Buy & Hold）")
 
 report_df = pd.DataFrame([
-    ["最終資產", f"{equity_lrs_final:,.0f}", f"{equity_bh_final:,.0f}"],
+    ["最終資產", format_plain_currency(equity_lrs_final), format_plain_currency(equity_bh_final)],
     ["總報酬", f"{final_return_lrs:.2%}", f"{final_return_bh:.2%}"],
     ["年化報酬", f"{cagr_lrs:.2%}", f"{cagr_bh:.2%}"],
     ["最大回撤", f"{mdd_lrs:.2%}", f"{mdd_bh:.2%}"],
