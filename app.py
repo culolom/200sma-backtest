@@ -397,18 +397,29 @@ if st.button("開始回測 🚀"):
         )
 
     # ================================
-    # 2）Heatmap 指標比較表
+    # 2）Heatmap 指標比較表（安全版）
     # ================================
-    
+    st.markdown("## 📊 指標比較（LRS vs Buy & Hold）")
 
+    # 1）顯示用 DataFrame（字串、給使用者看的）
+    display_df = pd.DataFrame([
+        ["最終資產", f"{equity_lrs_final:,.0f}", f"{equity_bh_final:,.0f}"],
+        ["總報酬", f"{final_return_lrs:.2%}", f"{final_return_bh:.2%}"],
+        ["年化報酬", f"{cagr_lrs:.2%}" if not np.isnan(cagr_lrs) else "—",
+                     f"{cagr_bh:.2%}" if not np.isnan(cagr_bh) else "—"],
+        ["最大回撤", f"{mdd_lrs:.2%}" if not np.isnan(mdd_lrs) else "—",
+                     f"{mdd_bh:.2%}" if not np.isnan(mdd_bh) else "—"],
+        ["年化波動率", f"{vol_lrs:.2%}" if not np.isnan(vol_lrs) else "—",
+                      f"{vol_bh:.2%}" if not np.isnan(vol_bh) else "—"],
+        ["夏普值", f"{sharpe_lrs:.2f}" if not np.isnan(sharpe_lrs) else "—",
+                  f"{sharpe_bh:.2f}" if not np.isnan(sharpe_bh) else "—"],
+        ["索提諾值", f"{sortino_lrs:.2f}" if not np.isnan(sortino_lrs) else "—",
+                    f"{sortino_bh:.2f}" if not np.isnan(sortino_bh) else "—"],
+    ], columns=["指標名稱", "LRS 策略", "Buy & Hold"])
 
-    # 1) 原始顯示用的 dataframe（文字）
-    display_df = report_df.copy()
-
-    # 2) 建立純數字 heatmap_df（不可含字串）
-    # 只轉換第二、第三欄（LRS、BH）
+    # 2）純數字 Heatmap DataFrame（只給顏色用，不給使用者看）
     heatmap_df = pd.DataFrame({
-        "LRS": [
+        "LRS 策略": [
             equity_lrs_final,
             final_return_lrs,
             cagr_lrs,
@@ -417,7 +428,7 @@ if st.button("開始回測 🚀"):
             sharpe_lrs,
             sortino_lrs,
         ],
-        "BH": [
+        "Buy & Hold": [
             equity_bh_final,
             final_return_bh,
             cagr_bh,
@@ -426,29 +437,22 @@ if st.button("開始回測 🚀"):
             sharpe_bh,
             sortino_bh,
         ],
-    }, index=report_df["指標名稱"])
+    }, index=display_df["指標名稱"])
 
-    # 3) 用 Styler 套用 heatmap，只吃 heatmap_df，顯示 display_df
-    def color_background(val):
-        return ""
-
+    # 3）Styler：顯示 display_df，heatmap 用 heatmap_df 畫
     styled = (
         display_df.style
-            .apply(
-                lambda _: pd.DataFrame(
-                    "", index=heatmap_df.index, columns=display_df.columns
-                ), axis=None
-            )
             .background_gradient(
                 cmap="Blues",
-                subset=pd.IndexSlice[:, ["LRS 策略", "Buy & Hold"]],
+                subset=["LRS 策略", "Buy & Hold"],
                 gmap=heatmap_df
             )
             .set_properties(subset=["指標名稱"], **{"font-weight": "bold"})
-            .set_properties(**{"text-align": "center", "border": "1px solid rgba(180,180,180,0.1)"})
+            .set_properties(**{"text-align": "center"})
     )
 
     st.dataframe(styled, use_container_width=True)
+
 
 
     # ================================
@@ -552,4 +556,5 @@ if st.button("開始回測 🚀"):
     # 完成訊息
     # ================================
     st.success("✅ 回測完成！（台股＋美股統一使用 yfinance，自動拆股調整 + 專業儀表板呈現）")
+
 
