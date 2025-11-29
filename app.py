@@ -153,45 +153,6 @@ def calc_metrics(series: pd.Series):
     return vol, sharpe, sortino
 
 
-def compute_rolling_stats(strategy_returns, benchmark_returns, equity_curve, window: int = 252):
-    """
-    計算滾動 Sharpe / MDD / CAGR / Beta
-    """
-
-    # Rolling Sharpe
-    def roll_sharpe(x: pd.Series):
-        std = x.std()
-        return (x.mean() / std) * np.sqrt(252) if std > 0 else np.nan
-
-    rolling_sharpe = strategy_returns.rolling(window).apply(roll_sharpe)
-
-    # Rolling MDD
-    def roll_mdd(x: pd.Series):
-        series = pd.Series(x)
-        return 1 - (series / series.cummax()).min()
-
-    rolling_mdd = equity_curve.rolling(window).apply(roll_mdd, raw=False)
-
-    # Rolling CAGR
-    def roll_cagr(x: pd.Series):
-        if len(x) <= 1 or x.iloc[0] <= 0:
-            return np.nan
-        years = len(x) / 252
-        return (x.iloc[-1] / x.iloc[0]) ** (1 / years) - 1
-
-    rolling_cagr = equity_curve.rolling(window).apply(roll_cagr, raw=False)
-
-    # Rolling Beta
-    df_rb = pd.concat([strategy_returns, benchmark_returns], axis=1)
-    df_rb.columns = ["S", "B"]
-
-    rolling_cov = df_rb["S"].rolling(window).cov(df_rb["B"])
-    rolling_var = df_rb["B"].rolling(window).var()
-    rolling_beta = rolling_cov / rolling_var
-
-    return rolling_sharpe, rolling_mdd, rolling_cagr, rolling_beta
-
-
 def extract_drawdown_periods(equity: pd.Series):
     """
     回傳 drawdown episode 清單：包含起點、谷底、恢復日與對應天數。
@@ -421,8 +382,64 @@ if st.button("開始回測 🚀"):
     equity_lrs_final = df["LRS_Capital"].iloc[-1]
     equity_bh_final = df["BH_Capital"].iloc[-1]
 
+    # Calmar（後面雷達圖會用到）
+    calmar_lrs = cagr_lrs / mdd_lrs if (mdd_lrs > 0 and not np.isnan(cagr_lrs)) else np.nan
+    calmar_bh = cagr_bh / mdd_bh if (mdd_bh > 0 and not np.isnan(cagr_bh)) else np.nan
+
     # ================================
-    # 圖表：價格 + 均線 + 買賣點 / Equity Curve
+    # 1）Summary Cards（LRS vs Buy&Hold 對照版）
+    # ================================
+    st.markdown("## 📌 回測總覽 Summary（LRS vs Buy&Hold）")
+
+    # 差異（Δ）
+    asset_gap_pct = ((equity_lrs_final / equity_bh_final) - 1) * 100 if equity_bh_final != 0 else np.nan
+    cagr_gap_pct = (cagr_lrs - cagr_bh) * 100 if (not np.isnan(cagr_lrs) and not np.isnan(cagr_bh)) else np.nan
+    mdd_gap_pct = (mdd_lrs - mdd_bh) * 100 if (not np.isnan(mdd_lrs) and not np.isnan(mdd_bh)) else np.nan
+    sharpe_gap = (sharpe_lrs - sharpe_bh) if (not np.isnan(sharpe_lrs) and not np.isnan(sharpe_bh)) else np.nan
+
+    sum_col1, sum_col2, sum_col3, sum_col4 = st.columns(4)
+
+    # 最終資產
+    with sum_col1:
+        st.metric(
+            label="最終資產（LRS / Buy&Hold）",
+            value=f"{format_currency(equity_lrs_final)} / {format_currency(equity_bh_final)}",
+            delta=f"LRS 較 BH {asset_gap_pct:+.2f}%" if not np.isnan(asset_gap_pct) else "—"
+        )
+
+    # CAGR
+    with sum_col2:
+        val_lrs = f"{cagr_lrs:.2%}" if not np.isnan(cagr_lrs) else "—"
+        val_bh = f"{cagr_bh:.2%}" if not np.isnan(cagr_bh) else "—"
+        st.metric(
+            label="年化報酬 CAGR（LRS / BH）",
+            value=f"{val_lrs} / {val_bh}",
+            delta=f"LRS 較 BH {cagr_gap_pct:+.2f}%" if not np.isnan(cagr_gap_pct) else "—"
+        )
+
+    # MDD
+    with sum_col3:
+        val_lrs = f"{mdd_lrs:.2%}" if not np.isnan(mdd_lrs) else "—"
+        val_bh = f"{mdd_bh:.2%}" if not np.isnan(mdd_bh) else "—"
+        st.metric(
+            label="最大回撤 MDD（LRS / BH）",
+            value=f"{val_lrs} / {val_bh}",
+            delta=f"LRS 較 BH {mdd_gap_pct:+.2f}%" if not np.isnan(mdd_gap_pct) else "—",
+            delta_color="inverse"
+        )
+
+    # Sharpe
+    with sum_col4:
+        val_lrs = f"{sharpe_lrs:.2f}" if not np.isnan(sharpe_lrs) else "—"
+        val_bh = f"{sharpe_bh:.2f}" if not np.isnan(sharpe_bh) else "—"
+        st.metric(
+            label="Sharpe Ratio（LRS / BH）",
+            value=f"{val_lrs} / {val_bh}",
+            delta=f"LRS 較 BH {sharpe_gap:+.2f}" if not np.isnan(sharpe_gap) else "—"
+        )
+
+    # ================================
+    # 2）價格 + 均線 + 買賣點 / 資金曲線
     # ================================
     st.markdown("<h2 style='margin-top:1em;'>📈 策略績效視覺化</h2>", unsafe_allow_html=True)
 
@@ -486,7 +503,7 @@ if st.button("開始回測 🚀"):
     st.plotly_chart(fig, use_container_width=True)
 
     # ================================
-    # 1）LRS 策略信號回放
+    # 3）LRS 策略信號回放
     # ================================
     st.markdown("## 🎯 LRS 策略信號回放")
 
@@ -514,85 +531,7 @@ if st.button("開始回測 🚀"):
     st.dataframe(signal_df, use_container_width=True)
 
     # ================================
-    # 2）KPI Summary Cards（LRS vs Buy&Hold）
-    # ================================
-    st.markdown("## 📌 回測總覽 Summary")
-
-    asset_gap_pct = ((equity_lrs_final / equity_bh_final) - 1) * 100 if equity_bh_final != 0 else 0.0
-    cagr_delta_pct = (cagr_lrs - cagr_bh) * 100 if (not np.isnan(cagr_lrs) and not np.isnan(cagr_bh)) else 0.0
-    vol_delta_pct = (vol_lrs - vol_bh) * 100 if (not np.isnan(vol_lrs) and not np.isnan(vol_bh)) else 0.0
-    mdd_delta_pct = (mdd_lrs - mdd_bh) * 100 if (not np.isnan(mdd_lrs) and not np.isnan(mdd_bh)) else 0.0
-
-    # 上排：LRS
-    row_lrs = st.columns(4)
-
-    with row_lrs[0]:
-        st.metric(
-            label="最終資產（LRS）",
-            value=format_currency(equity_lrs_final),
-            delta=f"較 Buy&Hold {asset_gap_pct:+.2f}%"
-        )
-
-    with row_lrs[1]:
-        st.metric(
-            label="年化報酬（CAGR, LRS）",
-            value=f"{cagr_lrs:.2%}" if not np.isnan(cagr_lrs) else "—",
-            delta=f"較 Buy&Hold {cagr_delta_pct:+.2f}%"
-        )
-
-    with row_lrs[2]:
-        st.metric(
-            label="年化波動率（LRS）",
-            value=f"{vol_lrs:.2%}" if not np.isnan(vol_lrs) else "—",
-            delta=f"較 Buy&Hold {vol_delta_pct:+.2f}%",
-            delta_color="inverse"
-        )
-
-    with row_lrs[3]:
-        st.metric(
-            label="最大回撤（LRS）",
-            value=f"{mdd_lrs:.2%}" if not np.isnan(mdd_lrs) else "—",
-            delta=f"較 Buy&Hold {mdd_delta_pct:+.2f}%",
-            delta_color="inverse"
-        )
-
-    # 下排：Buy & Hold
-    row_bh = st.columns(4)
-
-    with row_bh[0]:
-        st.metric(
-            label="最終資產（Buy&Hold）",
-            value=format_currency(equity_bh_final),
-            delta=f"較 LRS {-asset_gap_pct:+.2f}%",
-            delta_color="inverse"
-        )
-
-    with row_bh[1]:
-        st.metric(
-            label="年化報酬（CAGR, Buy&Hold）",
-            value=f"{cagr_bh:.2%}" if not np.isnan(cagr_bh) else "—",
-            delta=f"較 LRS {-cagr_delta_pct:+.2f}%",
-            delta_color="inverse"
-        )
-
-    with row_bh[2]:
-        st.metric(
-            label="年化波動率（Buy&Hold）",
-            value=f"{vol_bh:.2%}" if not np.isnan(vol_bh) else "—",
-            delta=f"較 LRS {-vol_delta_pct:+.2f}%",
-            delta_color="inverse"
-        )
-
-    with row_bh[3]:
-        st.metric(
-            label="最大回撤（Buy&Hold）",
-            value=f"{mdd_bh:.2%}" if not np.isnan(mdd_bh) else "—",
-            delta=f"較 LRS {-mdd_delta_pct:+.2f}%",
-            delta_color="inverse"
-        )
-
-    # ================================
-    # 3）交易統計（小卡片）
+    # 4）交易統計（小卡片）
     # ================================
     st.markdown("## 📈 交易統計")
 
@@ -602,11 +541,10 @@ if st.button("開始回測 🚀"):
     with trade_col2:
         st.metric(label="📤 賣出次數", value=sell_count)
 
-
     # ================================
     # 5）Portfolio Summary — 資產摘要
     # ================================
-    st.markdown("## 📦 Portfolio Summary — 資產摘要")
+    st.markdown("## 📦 Portfolio Summary — 資產摘要（LRS）")
 
     highest_value = df["LRS_Capital"].max()
     lowest_value = df["LRS_Capital"].min()
@@ -640,7 +578,7 @@ if st.button("開始回測 🚀"):
     # ================================
     # 6）月度績效熱力圖（ETFDB style）
     # ================================
-    st.markdown("## 📅 月度績效熱力圖")
+    st.markdown("## 📅 月度績效熱力圖（LRS）")
 
     # 取月度報酬
     df_month = df["Equity_LRS"].resample("M").last().pct_change().dropna()
@@ -677,7 +615,7 @@ if st.button("開始回測 🚀"):
     # ================================
     # 7）Sharpe / MDD 儀表板（Gauge）
     # ================================
-    st.markdown("## 🧭 Sharpe / MDD 儀表板")
+    st.markdown("## 🧭 Sharpe / MDD 儀表板（LRS）")
 
     g1, g2 = st.columns(2)
 
@@ -720,16 +658,13 @@ if st.button("開始回測 🚀"):
     # ================================
     # 8）Calmar Ratio 儀表板（Gauge）
     # ================================
-    st.markdown("## 🧨 Calmar Ratio — 報酬 / 風險 綜合指標")
-
-    # 避免除以零
-    calmar = cagr_lrs / mdd_lrs if (mdd_lrs > 0 and not np.isnan(cagr_lrs)) else np.nan
+    st.markdown("## 🧨 Calmar Ratio — 報酬 / 風險 綜合指標（LRS）")
 
     cal_col = st.columns(1)[0]
 
     calmar_fig = go.Figure(go.Indicator(
         mode="gauge+number",
-        value=nz(calmar),
+        value=nz(calmar_lrs),
         number={"valueformat": ".2f"},
         title={"text": "Calmar Ratio"},
         gauge={
@@ -791,7 +726,7 @@ if st.button("開始回測 🚀"):
         nz(1 - vol_lrs),
         nz(sharpe_lrs),
         nz(sortino_lrs),
-        nz(calmar),
+        nz(calmar_lrs),
         nz(win_rate_lrs),
         nz(1 - max_loss_streak / 50),
     ]
@@ -802,7 +737,7 @@ if st.button("開始回測 🚀"):
         nz(1 - vol_bh),
         nz(sharpe_bh),
         nz(sortino_bh),
-        nz(cagr_bh / mdd_bh if mdd_bh > 0 else np.nan),
+        nz(calmar_bh),
         nz(win_rate_bh),
         nz(1 - max_loss_streak_bh / 50),
     ]
@@ -831,101 +766,9 @@ if st.button("開始回測 🚀"):
     st.plotly_chart(radar_fig_adv, use_container_width=True)
 
     # ================================
-    # 10）Rolling 指標（Sharpe / MDD / CAGR / Beta）
+    # 10）回撤分析表（含修復天數）
     # ================================
-    st.markdown("## 📈 Rolling 指標")
-
-    roll_window = st.slider("Rolling 視窗（交易日）", 30, 252, 126, step=21)
-
-    rolling_sharpe, rolling_mdd, rolling_cagr, rolling_beta = compute_rolling_stats(
-        df["Strategy_Return"], df["Return"], df["Equity_LRS"], window=roll_window
-    )
-
-    roll_fig = make_subplots(
-        rows=2,
-        cols=2,
-        subplot_titles=("Rolling Sharpe", "Rolling MDD", "Rolling CAGR", "Rolling Beta"),
-        shared_xaxes=True,
-    )
-
-    roll_fig.add_trace(
-        go.Scatter(x=rolling_sharpe.index, y=rolling_sharpe, name="Rolling Sharpe"),
-        row=1,
-        col=1,
-    )
-    roll_fig.add_trace(
-        go.Scatter(x=rolling_mdd.index, y=rolling_mdd, name="Rolling MDD"),
-        row=1,
-        col=2,
-    )
-    roll_fig.add_trace(
-        go.Scatter(x=rolling_cagr.index, y=rolling_cagr, name="Rolling CAGR"),
-        row=2,
-        col=1,
-    )
-    roll_fig.add_trace(
-        go.Scatter(x=rolling_beta.index, y=rolling_beta, name="Rolling Beta"),
-        row=2,
-        col=2,
-    )
-
-    roll_fig.update_layout(height=700, template="plotly_white")
-    st.plotly_chart(roll_fig, use_container_width=True)
-
-    # ================================
-    # 11）Rolling Beta — CTA Style
-    # ================================
-    st.markdown("### 📘 Rolling Beta — CTA 等級視覺化")
-
-    beta_series = rolling_beta.dropna()
-    if not beta_series.empty:
-        colors = ["#ff4d4f" if b > 1 else "#52c41a" for b in beta_series]
-
-        fig_beta = go.Figure()
-
-        fig_beta.add_trace(
-            go.Scatter(
-                x=beta_series.index,
-                y=beta_series,
-                mode="lines",
-                line=dict(color="#1f77b4", width=2),
-                name="Rolling Beta"
-            )
-        )
-
-        fig_beta.add_trace(
-            go.Bar(
-                x=beta_series.index,
-                y=[max(beta_series.max(), 1.2)] * len(beta_series),
-                marker=dict(color=colors, opacity=0.15),
-                showlegend=False,
-                hoverinfo="skip",
-            )
-        )
-
-        fig_beta.add_hline(
-            y=1,
-            line=dict(color="gray", width=1, dash="dot"),
-            annotation_text="Beta = 1",
-            annotation_position="top left"
-        )
-
-        fig_beta.update_layout(
-            height=300,
-            template="plotly_white",
-            yaxis_title="Beta",
-            xaxis_title="日期",
-            margin=dict(l=20, r=20, t=30, b=20)
-        )
-
-        st.plotly_chart(fig_beta, use_container_width=True)
-    else:
-        st.info("Rolling Beta 資料不足，無法顯示 CTA 風格圖。")
-
-    # ================================
-    # 12）回撤分析表（含修復天數）
-    # ================================
-    st.markdown("## 📉 回撤分析表")
+    st.markdown("## 📉 回撤分析表（LRS）")
 
     dd_records = extract_drawdown_periods(df["Equity_LRS"])
     if dd_records:
@@ -937,9 +780,9 @@ if st.button("開始回測 🚀"):
         st.info("尚未觀察到回撤事件。")
 
     # ================================
-    # 13）Monte Carlo 模擬（分位數視覺化）
+    # 11）Monte Carlo 模擬（分位數視覺化）
     # ================================
-    st.markdown("## 🎲 Monte Carlo 模擬")
+    st.markdown("## 🎲 Monte Carlo 模擬（LRS 報酬重抽樣）")
 
     sims, quantiles = run_monte_carlo_sim(df["Strategy_Return"])
     mc_index = df.index
