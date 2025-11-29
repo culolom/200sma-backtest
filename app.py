@@ -419,40 +419,8 @@ if st.button("開始回測 🚀"):
                     f"{sortino_bh:.2f}" if not np.isnan(sortino_bh) else "—"],
     ], columns=["指標名稱", "LRS 策略", "Buy & Hold"])
 
-    with col_hm1:
-        st.markdown("#### 📘 指標（文字表）")
-        st.table(display_df)
 
-    # 2) 熱力圖（純數字 Heatmap）
-    heatmap_df = pd.DataFrame({
-        "LRS": [
-            equity_lrs_final,
-            final_return_lrs,
-            cagr_lrs,
-            mdd_lrs,
-            vol_lrs,
-            sharpe_lrs,
-            sortino_lrs,
-        ],
-        "BH": [
-            equity_bh_final,
-            final_return_bh,
-            cagr_bh,
-            mdd_bh,
-            vol_bh,
-            sharpe_bh,
-            sortino_bh,
-        ],
-    }, index=[
-        "最終資產","總報酬","年化報酬","最大回撤","年化波動率","夏普值","索提諾值"
-    ])
 
-    with col_hm2:
-        st.markdown("#### 🔥 指標（Heatmap）")
-        st.dataframe(
-            heatmap_df.style.background_gradient(cmap="Blues"),
-            use_container_width=True
-        )
 
 
     # ================================
@@ -556,6 +524,7 @@ if st.button("開始回測 🚀"):
     # 完成訊息
     # ================================
     st.success("✅ 回測完成！（台股＋美股統一使用 yfinance，自動拆股調整 + 專業儀表板呈現）")
+
 
 
 
