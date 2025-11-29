@@ -153,6 +153,128 @@ def calc_metrics(series: pd.Series):
     return vol, sharpe, sortino
 
 
+def compute_rolling_stats(
+    strategy_returns: pd.Series,
+    benchmark_returns: pd.Series,
+    equity_curve: pd.Series,
+    window: int = 252,
+):
+    """
+    計算滾動指標：Sharpe / MDD / CAGR / Beta。
+
+    - window 預設 252 交易日（約 1 年）。
+    """
+    def roll_sharpe(x: pd.Series):
+        std = x.std()
+        return (x.mean() / std) * np.sqrt(252) if std > 0 else np.nan
+
+    def roll_mdd(x: pd.Series):
+        series = pd.Series(x)
+        return 1 - (series / series.cummax()).min()
+
+    def roll_cagr(x: pd.Series):
+        if len(x) <= 1 or x[0] <= 0:
+            return np.nan
+        years = len(x) / 252
+        return (x[-1] / x[0]) ** (1 / years) - 1
+
+    def roll_beta(x):
+        s = x[:, 0]
+        b = x[:, 1]
+        var_b = np.var(b, ddof=1)
+        if var_b == 0:
+            return np.nan
+        cov = np.cov(s, b, ddof=1)[0, 1]
+        return cov / var_b
+
+    rolling_sharpe = strategy_returns.rolling(window).apply(roll_sharpe, raw=False)
+    rolling_mdd = equity_curve.rolling(window).apply(roll_mdd, raw=True)
+    rolling_cagr = equity_curve.rolling(window).apply(roll_cagr, raw=True)
+    rolling_beta = (
+        pd.concat([strategy_returns, benchmark_returns], axis=1)
+        .rolling(window)
+        .apply(roll_beta, raw=True)
+    )
+
+    return rolling_sharpe, rolling_mdd, rolling_cagr, rolling_beta
+
+
+def extract_drawdown_periods(equity: pd.Series):
+    """
+    回傳 drawdown episode 清單：包含起點、谷底、恢復日與對應天數。
+    """
+    if equity.empty:
+        return []
+
+    records = []
+    peak_value = equity.iloc[0]
+    peak_date = equity.index[0]
+    trough_value = peak_value
+    trough_date = peak_date
+    in_drawdown = False
+
+    for date, value in equity.iloc[1:].items():
+        if value >= peak_value:
+            if in_drawdown:
+                recovery_date = date
+                drawdown_pct = 1 - (trough_value / peak_value)
+                records.append(
+                    {
+                        "開始": peak_date.date(),
+                        "谷底": trough_date.date(),
+                        "恢復": recovery_date.date(),
+                        "最大回撤": drawdown_pct,
+                        "跌幅天數": (trough_date - peak_date).days,
+                        "修復天數": (recovery_date - trough_date).days,
+                    }
+                )
+                in_drawdown = False
+            peak_value = value
+            peak_date = date
+            trough_value = value
+            trough_date = date
+        else:
+            in_drawdown = True
+            if value < trough_value:
+                trough_value = value
+                trough_date = date
+
+    if in_drawdown:
+        drawdown_pct = 1 - (trough_value / peak_value)
+        records.append(
+            {
+                "開始": peak_date.date(),
+                "谷底": trough_date.date(),
+                "恢復": None,
+                "最大回撤": drawdown_pct,
+                "跌幅天數": (trough_date - peak_date).days,
+                "修復天數": None,
+            }
+        )
+
+    return records
+
+
+def run_monte_carlo_sim(returns: pd.Series, paths: int = 200, seed: int = 42):
+    """使用日報酬做重抽樣，回傳各路徑的累積報酬陣列與分位數。"""
+    rng = np.random.default_rng(seed)
+    data = returns.fillna(0).values
+    n = len(data)
+
+    sims = np.empty((paths, n))
+    for i in range(paths):
+        sampled = rng.choice(data, size=n, replace=True)
+        sims[i] = np.cumprod(1 + sampled)
+
+    quantiles = {
+        "p5": np.quantile(sims, 0.05, axis=0),
+        "p50": np.quantile(sims, 0.50, axis=0),
+        "p95": np.quantile(sims, 0.95, axis=0),
+    }
+
+    return sims, quantiles
+
+
 def format_currency(value: float) -> str:
     """金額格式化（台幣，千分位）"""
     try:
@@ -777,4 +899,99 @@ if st.button("開始回測 🚀"):
         height=600,
     )
     st.plotly_chart(radar_fig, use_container_width=True)
+
+    # ================================
+    # 9）Rolling 指標（Sharpe / MDD / CAGR / Beta）
+    # ================================
+    st.markdown("## 📈 Rolling 指標")
+
+    roll_window = st.slider("Rolling 視窗（交易日）", 30, 252, 126, step=21)
+
+    rolling_sharpe, rolling_mdd, rolling_cagr, rolling_beta = compute_rolling_stats(
+        df["Strategy_Return"], df["Return"], df["Equity_LRS"], window=roll_window
+    )
+
+    roll_fig = make_subplots(
+        rows=2,
+        cols=2,
+        subplot_titles=("Rolling Sharpe", "Rolling MDD", "Rolling CAGR", "Rolling Beta"),
+        shared_xaxes=True,
+    )
+
+    roll_fig.add_trace(
+        go.Scatter(x=rolling_sharpe.index, y=rolling_sharpe, name="Rolling Sharpe"),
+        row=1,
+        col=1,
+    )
+    roll_fig.add_trace(
+        go.Scatter(x=rolling_mdd.index, y=rolling_mdd, name="Rolling MDD"),
+        row=1,
+        col=2,
+    )
+    roll_fig.add_trace(
+        go.Scatter(x=rolling_cagr.index, y=rolling_cagr, name="Rolling CAGR"),
+        row=2,
+        col=1,
+    )
+    roll_fig.add_trace(
+        go.Scatter(x=rolling_beta.index, y=rolling_beta, name="Rolling Beta"),
+        row=2,
+        col=2,
+    )
+
+    roll_fig.update_layout(height=700, template="plotly_white")
+    st.plotly_chart(roll_fig, use_container_width=True)
+
+    # ================================
+    # 10）回撤分析表（含修復天數）
+    # ================================
+    st.markdown("## 📉 回撤分析表")
+
+    dd_records = extract_drawdown_periods(df["Equity_LRS"])
+    if dd_records:
+        dd_df = pd.DataFrame(dd_records)
+        dd_df = dd_df.sort_values("最大回撤", ascending=False)
+        dd_df["最大回撤"] = dd_df["最大回撤"].apply(lambda x: f"{x:.2%}")
+        st.dataframe(dd_df, use_container_width=True)
+    else:
+        st.info("尚未觀察到回撤事件。")
+
+    # ================================
+    # 11）Monte Carlo 模擬（分位數視覺化）
+    # ================================
+    st.markdown("## 🎲 Monte Carlo 模擬")
+
+    sims, quantiles = run_monte_carlo_sim(df["Strategy_Return"])
+    mc_index = df.index
+
+    mc_fig = go.Figure()
+    mc_fig.add_trace(go.Scatter(x=mc_index, y=df["Equity_LRS"], name="實際 Equity", line=dict(color="black")))
+    mc_fig.add_trace(
+        go.Scatter(
+            x=mc_index,
+            y=quantiles["p5"],
+            name="5% 分位", line=dict(color="#ff6666", dash="dot"),
+        )
+    )
+    mc_fig.add_trace(
+        go.Scatter(
+            x=mc_index,
+            y=quantiles["p50"],
+            name="50% 分位", line=dict(color="#1e90ff"),
+        )
+    )
+    mc_fig.add_trace(
+        go.Scatter(
+            x=mc_index,
+            y=quantiles["p95"],
+            name="95% 分位", line=dict(color="#66cc66", dash="dot"),
+        )
+    )
+
+    mc_fig.update_layout(
+        height=500,
+        template="plotly_white",
+        yaxis_title="累積報酬 (起點=1)",
+    )
+    st.plotly_chart(mc_fig, use_container_width=True)
     
