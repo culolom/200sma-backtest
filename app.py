@@ -692,4 +692,89 @@ if st.button("開始回測 🚀"):
     calmar_fig.update_layout(height=300)
     cal_col.plotly_chart(calmar_fig, use_container_width=True)
 
-
+    # ================================
+    # 風險雷達圖（完整 + 強化版本）
+    # ================================
+    st.markdown("## 🛡️ 策略 vs 指數 — 風險雷達圖（進階版）")
+    
+    radar_categories = [
+        "年化報酬",
+        "最大回撤(反向)",
+        "波動率(反向)",
+        "夏普值",
+        "索提諾值",
+        "Calmar Ratio",
+        "勝率",
+        "最大連跌(反向)"
+    ]
+    
+    def nz(x):
+        return float(np.nan_to_num(x, nan=0.0))
+    
+    # 勝率
+    win_rate_lrs = (df["Strategy_Return"] > 0).mean()
+    win_rate_bh = (df["Return"] > 0).mean()
+    
+    # 最大連跌（策略）
+    loss_streak = max_loss_streak = 0
+    for r in df["Strategy_Return"]:
+        if r < 0:
+            loss_streak += 1
+            max_loss_streak = max(max_loss_streak, loss_streak)
+        else:
+            loss_streak = 0
+    
+    # 最大連跌（Buy&Hold）
+    loss_streak_bh = max_loss_streak_bh = 0
+    for r in df["Return"]:
+        if r < 0:
+            loss_streak_bh += 1
+            max_loss_streak_bh = max(max_loss_streak_bh, loss_streak_bh)
+        else:
+            loss_streak_bh = 0
+    
+    radar_lrs = [
+        nz(cagr_lrs),
+        nz(1 - mdd_lrs),
+        nz(1 - vol_lrs),
+        nz(sharpe_lrs),
+        nz(sortino_lrs),
+        nz(calmar),
+        nz(win_rate_lrs),
+        nz(1 - max_loss_streak / 50),
+    ]
+    
+    radar_bh = [
+        nz(cagr_bh),
+        nz(1 - mdd_bh),
+        nz(1 - vol_bh),
+        nz(sharpe_bh),
+        nz(sortino_bh),
+        nz(cagr_bh / mdd_bh if mdd_bh > 0 else 0),
+        nz(win_rate_bh),
+        nz(1 - max_loss_streak_bh / 50),
+    ]
+    
+    radar_fig = go.Figure()
+    radar_fig.add_trace(go.Scatterpolar(
+        r=radar_lrs,
+        theta=radar_categories,
+        fill="toself",
+        name="LRS 策略",
+        line=dict(color="green", width=2)
+    ))
+    radar_fig.add_trace(go.Scatterpolar(
+        r=radar_bh,
+        theta=radar_categories,
+        fill="toself",
+        name="Buy & Hold",
+        line=dict(color="gray", width=2)
+    ))
+    
+    radar_fig.update_layout(
+        polar=dict(radialaxis=dict(visible=True, range=[0, 1])),
+        showlegend=True,
+        height=600,
+    )
+    st.plotly_chart(radar_fig, use_container_width=True)
+    
