@@ -494,86 +494,86 @@ if st.button("開始回測 🚀"):
     # ================================
     st.markdown("## 🛡️ 策略 vs 指數 — 風險雷達圖")
     
-        radar_categories = ["年化報酬", "最大回撤(反向)", "波動率(反向)", "夏普值", "索提諾值"]
-    
-        # 避免 NaN 造成錯誤，全部用 0 取代
-        def nz(x):
-            return float(np.nan_to_num(x, nan=0.0))
-    
-        radar_lrs = [
-            nz(cagr_lrs),
-            nz(1 - mdd_lrs),
-            nz(1 - vol_lrs),
-            nz(sharpe_lrs),
-            nz(sortino_lrs),
-        ]
-        radar_bh = [
-            nz(cagr_bh),
-            nz(1 - mdd_bh),
-            nz(1 - vol_bh),
-            nz(sharpe_bh),
-            nz(sortino_bh),
-        ]
-    
-        radar_fig = go.Figure()
-        radar_fig.add_trace(
-            go.Scatterpolar(
-                r=radar_lrs,
-                theta=radar_categories,
-                fill="toself",
-                name="LRS 策略",
-                line=dict(color="green"),
-            )
+    radar_categories = ["年化報酬", "最大回撤(反向)", "波動率(反向)", "夏普值", "索提諾值"]
+
+    # 避免 NaN 造成錯誤，全部用 0 取代
+    def nz(x):
+        return float(np.nan_to_num(x, nan=0.0))
+
+    radar_lrs = [
+        nz(cagr_lrs),
+        nz(1 - mdd_lrs),
+        nz(1 - vol_lrs),
+        nz(sharpe_lrs),
+        nz(sortino_lrs),
+    ]
+    radar_bh = [
+        nz(cagr_bh),
+        nz(1 - mdd_bh),
+        nz(1 - vol_bh),
+        nz(sharpe_bh),
+        nz(sortino_bh),
+    ]
+
+    radar_fig = go.Figure()
+    radar_fig.add_trace(
+        go.Scatterpolar(
+            r=radar_lrs,
+            theta=radar_categories,
+            fill="toself",
+            name="LRS 策略",
+            line=dict(color="green"),
         )
-        radar_fig.add_trace(
-            go.Scatterpolar(
-                r=radar_bh,
-                theta=radar_categories,
-                fill="toself",
-                name="Buy & Hold",
-                line=dict(color="gray"),
-            )
+    )
+    radar_fig.add_trace(
+        go.Scatterpolar(
+            r=radar_bh,
+            theta=radar_categories,
+            fill="toself",
+            name="Buy & Hold",
+            line=dict(color="gray"),
         )
-        radar_fig.update_layout(
-            polar=dict(radialaxis=dict(visible=True)),
-            showlegend=True,
-            height=500,
-        )
-        st.plotly_chart(radar_fig, use_container_width=True)
-    
+    )
+    radar_fig.update_layout(
+        polar=dict(radialaxis=dict(visible=True)),
+        showlegend=True,
+        height=500,
+    )
+    st.plotly_chart(radar_fig, use_container_width=True)
+
     # ================================
     # 5）Portfolio Summary — 資產摘要
     # ================================
     st.markdown("## 📦 Portfolio Summary — 資產摘要")
 
-        highest_value = df["LRS_Capital"].max()
-        lowest_value = df["LRS_Capital"].min()
-    
-        # 月報酬
-        df_monthly = df["Equity_LRS"].resample("M").last().pct_change()
-        best_month = df_monthly.max()
-        worst_month = df_monthly.min()
-    
-        summ_col1, summ_col2, summ_col3, summ_col4 = st.columns(4)
-    
-        with summ_col1:
-            st.metric(label="💰 最高資產", value=format_currency(highest_value))
-    
-        with summ_col2:
-            st.metric(label="📉 最低資產", value=format_currency(lowest_value))
-    
-        with summ_col3:
-            st.metric(
-                label="📈 最佳月份報酬",
-                value=f"{best_month:.2%}" if not np.isnan(best_month) else "—",
-            )
-    
-        with summ_col4:
-            st.metric(
-                label="📉 最差月份報酬",
-                value=f"{worst_month:.2%}" if not np.isnan(worst_month) else "—",
-                delta_color="inverse",
-            )
+    highest_value = df["LRS_Capital"].max()
+    lowest_value = df["LRS_Capital"].min()
+
+    # 月報酬
+    df_monthly = df["Equity_LRS"].resample("M").last().pct_change()
+    best_month = df_monthly.max()
+    worst_month = df_monthly.min()
+
+    summ_col1, summ_col2, summ_col3, summ_col4 = st.columns(4)
+
+    with summ_col1:
+        st.metric(label="💰 最高資產", value=format_currency(highest_value))
+
+    with summ_col2:
+        st.metric(label="📉 最低資產", value=format_currency(lowest_value))
+
+    with summ_col3:
+        st.metric(
+            label="📈 最佳月份報酬",
+            value=f"{best_month:.2%}" if not np.isnan(best_month) else "—",
+        )
+
+    with summ_col4:
+        st.metric(
+            label="📉 最差月份報酬",
+            value=f"{worst_month:.2%}" if not np.isnan(worst_month) else "—",
+            delta_color="inverse",
+        )
 
     # ================================
     # 6）月度績效熱力圖（ETFDB style）
