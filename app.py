@@ -276,6 +276,16 @@ def format_currency(value: float) -> str:
         return "—"
 
 
+def format_percent(value: float, decimals: int = 2) -> str:
+    """百分比格式化，並處理 NaN。"""
+    try:
+        if np.isnan(value):
+            return "—"
+        return f"{value:.{decimals}%}"
+    except Exception:
+        return "—"
+
+
 def nz(x, default: float = 0.0):
     """把 NaN 轉成 0（或自訂值），避免圖表炸裂。"""
     return float(np.nan_to_num(x, nan=default))
@@ -422,189 +432,248 @@ if st.button("開始回測 🚀"):
     equity_bh_final = df["BH_Capital"].iloc[-1]
 
     # ================================
-    # 圖表：價格 + 均線 + 買賣點 / Equity Curve
+    # 視覺化總覽：圖表 + KPI 卡片
     # ================================
     st.markdown("<h2 style='margin-top:1em;'>📈 策略績效視覺化</h2>", unsafe_allow_html=True)
 
-    fig = make_subplots(
-        rows=2,
-        cols=1,
-        shared_xaxes=True,
-        subplot_titles=("收盤價與均線（含買賣點）", "資金曲線：LRS vs Buy&Hold"),
-    )
+    tabs = st.tabs(["價格/資金曲線", "回撤比較", "風險報酬雷達", "日報酬分佈"])
 
-    fig.add_trace(
-        go.Scatter(x=df.index, y=df["Price"], name="收盤價", line=dict(color="blue")),
-        row=1,
-        col=1,
-    )
-    fig.add_trace(
-        go.Scatter(x=df.index, y=df["MA"], name=f"{ma_type}{window}", line=dict(color="orange")),
-        row=1,
-        col=1,
-    )
+    # 主要價格與資金曲線
+    with tabs[0]:
+        fig = make_subplots(
+            rows=2,
+            cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.12,
+            subplot_titles=("收盤價與均線（含買賣點）", "資金曲線：LRS vs Buy&Hold"),
+        )
 
-    if buy_points:
-        bx, by = zip(*buy_points)
         fig.add_trace(
-            go.Scatter(
-                x=bx,
-                y=by,
-                mode="markers",
-                name="買進",
-                marker=dict(color="green", symbol="triangle-up", size=8),
-            ),
+            go.Scatter(x=df.index, y=df["Price"], name="收盤價", line=dict(color="#1f77b4", width=2)),
             row=1,
             col=1,
         )
-    if sell_points:
-        sx, sy = zip(*sell_points)
         fig.add_trace(
-            go.Scatter(
-                x=sx,
-                y=sy,
-                mode="markers",
-                name="賣出",
-                marker=dict(color="red", symbol="x", size=8),
-            ),
+            go.Scatter(x=df.index, y=df["MA"], name=f"{ma_type}{window}", line=dict(color="#f5a623", width=2, dash="dash")),
             row=1,
             col=1,
         )
 
-    fig.add_trace(
-        go.Scatter(x=df.index, y=df["Equity_LRS"], name="LRS 策略", line=dict(color="green")),
-        row=2,
-        col=1,
-    )
-    fig.add_trace(
-        go.Scatter(x=df.index, y=df["Equity_BuyHold"], name="Buy & Hold", line=dict(color="gray", dash="dot")),
-        row=2,
-        col=1,
-    )
+        if buy_points:
+            bx, by = zip(*buy_points)
+            fig.add_trace(
+                go.Scatter(
+                    x=bx,
+                    y=by,
+                    mode="markers",
+                    name="買進",
+                    marker=dict(color="#2ecc71", symbol="triangle-up", size=9, line=dict(color="#145a32", width=1)),
+                ),
+                row=1,
+                col=1,
+            )
+        if sell_points:
+            sx, sy = zip(*sell_points)
+            fig.add_trace(
+                go.Scatter(
+                    x=sx,
+                    y=sy,
+                    mode="markers",
+                    name="賣出",
+                    marker=dict(color="#e74c3c", symbol="x", size=9, line=dict(color="#922b21", width=1)),
+                ),
+                row=1,
+                col=1,
+            )
 
-    fig.update_layout(height=800, showlegend=True, template="plotly_white")
-    st.plotly_chart(fig, use_container_width=True)
-
-    # ================================
-    # LRS vs Buy & Hold 回撤比較圖
-    # ================================
-    
-    
-    # 計算回撤（Drawdown）
-    dd_lrs = (df["Equity_LRS"] / df["Equity_LRS"].cummax() - 1) * 100
-    dd_bh = (df["Equity_BuyHold"] / df["Equity_BuyHold"].cummax() - 1) * 100
-    
-    fig_dd_compare = go.Figure()
-    
-    fig_dd_compare.add_trace(
-        go.Scatter(
-            x=df.index,
-            y=dd_lrs,
-            mode="lines",
-            name="LRS 回撤",
-            line=dict(color="#ff7f7f", width=2),
-            fill=None,
+        fig.add_trace(
+            go.Scatter(x=df.index, y=df["Equity_LRS"], name="LRS 策略", line=dict(color="#2ecc71", width=3)),
+            row=2,
+            col=1,
         )
-    )
-    
-    fig_dd_compare.add_trace(
-        go.Scatter(
-            x=df.index,
-            y=dd_bh,
-            mode="lines",
-            name="Buy & Hold 回撤",
-            line=dict(color="#4a90e2", width=2, dash="dot"),
-            fill=None,
+        fig.add_trace(
+            go.Scatter(
+                x=df.index,
+                y=df["Equity_BuyHold"],
+                name="Buy & Hold",
+                line=dict(color="#7f8c8d", width=2, dash="dot"),
+                fill="tozeroy",
+                fillcolor="rgba(127,140,141,0.08)",
+            ),
+            row=2,
+            col=1,
         )
-    )
-    
-    fig_dd_compare.update_layout(
-        height=420,
-        template="plotly_white",
-        yaxis_title="回撤 (%)",
-        xaxis_title="日期",
-        legend=dict(y=1.05, orientation="h")
-    )
-    
-    st.plotly_chart(fig_dd_compare, use_container_width=True)
+
+        fig.update_layout(height=820, showlegend=True, template="plotly_white")
+        st.plotly_chart(fig, use_container_width=True)
+
+    # 回撤對比
+    with tabs[1]:
+        dd_lrs = (df["Equity_LRS"] / df["Equity_LRS"].cummax() - 1) * 100
+        dd_bh = (df["Equity_BuyHold"] / df["Equity_BuyHold"].cummax() - 1) * 100
+
+        fig_dd_compare = go.Figure()
+        fig_dd_compare.add_trace(
+            go.Scatter(
+                x=df.index,
+                y=dd_lrs,
+                mode="lines",
+                name="LRS 回撤",
+                line=dict(color="#e67e22", width=2.5),
+                fill="tozeroy",
+                fillcolor="rgba(230,126,34,0.08)",
+            )
+        )
+        fig_dd_compare.add_trace(
+            go.Scatter(
+                x=df.index,
+                y=dd_bh,
+                mode="lines",
+                name="Buy & Hold 回撤",
+                line=dict(color="#4a90e2", width=2, dash="dot"),
+                fill=None,
+            )
+        )
+
+        fig_dd_compare.update_layout(
+            height=460,
+            template="plotly_white",
+            yaxis_title="回撤 (%)",
+            xaxis_title="日期",
+            legend=dict(y=1.02, orientation="h"),
+        )
+
+        st.plotly_chart(fig_dd_compare, use_container_width=True)
+
+    # 雷達圖：風險報酬關鍵指標
+    with tabs[2]:
+        radar_categories = ["CAGR", "Sharpe", "Sortino", "-MDD", "波動率(反轉)"]
+        radar_lrs = [
+            nz(cagr_lrs),
+            nz(sharpe_lrs),
+            nz(sortino_lrs),
+            nz(-mdd_lrs),
+            nz(-vol_lrs),
+        ]
+        radar_bh = [
+            nz(cagr_bh),
+            nz(sharpe_bh),
+            nz(sortino_bh),
+            nz(-mdd_bh),
+            nz(-vol_bh),
+        ]
+
+        fig_radar = go.Figure()
+        fig_radar.add_trace(
+            go.Scatterpolar(r=radar_lrs, theta=radar_categories, fill="toself", name="LRS", line=dict(color="#27ae60"))
+        )
+        fig_radar.add_trace(
+            go.Scatterpolar(r=radar_bh, theta=radar_categories, fill="toself", name="Buy&Hold", line=dict(color="#7f8c8d"))
+        )
+        fig_radar.update_layout(
+            polar=dict(radialaxis=dict(visible=True, showline=False, gridcolor="rgba(0,0,0,0.1)")),
+            template="plotly_white",
+            height=520,
+            legend=dict(orientation="h", y=1.05),
+        )
+        st.plotly_chart(fig_radar, use_container_width=True)
+
+    # 報酬分佈
+    with tabs[3]:
+        fig_hist = go.Figure()
+        fig_hist.add_trace(
+            go.Histogram(
+                x=df["Strategy_Return"] * 100,
+                nbinsx=50,
+                name="LRS 日報酬",
+                marker_color="#2ecc71",
+                opacity=0.7,
+            )
+        )
+        fig_hist.add_trace(
+            go.Histogram(
+                x=df["Return"] * 100,
+                nbinsx=50,
+                name="Buy&Hold 日報酬",
+                marker_color="#95a5a6",
+                opacity=0.6,
+            )
+        )
+        fig_hist.update_layout(
+            barmode="overlay",
+            template="plotly_white",
+            height=520,
+            xaxis_title="日報酬 (%)",
+            yaxis_title="次數",
+            legend=dict(orientation="h", y=1.05),
+        )
+        st.plotly_chart(fig_hist, use_container_width=True)
 
     # ================================
-    # 2）KPI Summary Cards（LRS vs Buy&Hold）
+    # KPI Summary Cards（LRS vs Buy&Hold）
     # ================================
-    
-
     asset_gap_pct = ((equity_lrs_final / equity_bh_final) - 1) * 100 if equity_bh_final != 0 else 0.0
     cagr_delta_pct = (cagr_lrs - cagr_bh) * 100 if (not np.isnan(cagr_lrs) and not np.isnan(cagr_bh)) else 0.0
     vol_delta_pct = (vol_lrs - vol_bh) * 100 if (not np.isnan(vol_lrs) and not np.isnan(vol_bh)) else 0.0
     mdd_delta_pct = (mdd_lrs - mdd_bh) * 100 if (not np.isnan(mdd_lrs) and not np.isnan(mdd_bh)) else 0.0
 
-    # 上排：LRS
+    st.markdown("<h3 style='margin-top:1em;'>🎯 核心指標對比</h3>", unsafe_allow_html=True)
+
     row_lrs = st.columns(4)
-
     with row_lrs[0]:
-        st.metric(
-            label="最終資產（LRS）",
-            value=format_currency(equity_lrs_final),
-            delta=f"較 Buy&Hold {asset_gap_pct:+.2f}%"
-        )
-
+        st.metric(label="最終資產（LRS）", value=format_currency(equity_lrs_final), delta=f"較 Buy&Hold {asset_gap_pct:+.2f}%")
     with row_lrs[1]:
-        st.metric(
-            label="年化報酬（CAGR, LRS）",
-            value=f"{cagr_lrs:.2%}" if not np.isnan(cagr_lrs) else "—",
-            delta=f"較 Buy&Hold {cagr_delta_pct:+.2f}%"
-        )
-
+        st.metric(label="年化報酬（CAGR, LRS）", value=format_percent(cagr_lrs), delta=f"較 Buy&Hold {cagr_delta_pct:+.2f}%")
     with row_lrs[2]:
-        st.metric(
-            label="年化波動率（LRS）",
-            value=f"{vol_lrs:.2%}" if not np.isnan(vol_lrs) else "—",
-            delta=f"較 Buy&Hold {vol_delta_pct:+.2f}%",
-            delta_color="inverse"
-        )
-
+        st.metric(label="年化波動率（LRS）", value=format_percent(vol_lrs), delta=f"較 Buy&Hold {vol_delta_pct:+.2f}%", delta_color="inverse")
     with row_lrs[3]:
-        st.metric(
-            label="最大回撤（LRS）",
-            value=f"{mdd_lrs:.2%}" if not np.isnan(mdd_lrs) else "—",
-            delta=f"較 Buy&Hold {mdd_delta_pct:+.2f}%",
-            delta_color="inverse"
-        )
+        st.metric(label="最大回撤（LRS）", value=format_percent(mdd_lrs), delta=f"較 Buy&Hold {mdd_delta_pct:+.2f}%", delta_color="inverse")
 
-    # 下排：Buy & Hold
     row_bh = st.columns(4)
-
     with row_bh[0]:
-        st.metric(
-            label="最終資產（Buy&Hold）",
-            value=format_currency(equity_bh_final),
-            delta=f"較 LRS {-asset_gap_pct:+.2f}%",
-            delta_color="inverse"
-        )
-
+        st.metric(label="最終資產（Buy&Hold）", value=format_currency(equity_bh_final), delta=f"較 LRS {-asset_gap_pct:+.2f}%", delta_color="inverse")
     with row_bh[1]:
-        st.metric(
-            label="年化報酬（CAGR, Buy&Hold）",
-            value=f"{cagr_bh:.2%}" if not np.isnan(cagr_bh) else "—",
-            delta=f"較 LRS {-cagr_delta_pct:+.2f}%",
-            delta_color="inverse"
-        )
-
+        st.metric(label="年化報酬（CAGR, Buy&Hold）", value=format_percent(cagr_bh), delta=f"較 LRS {-cagr_delta_pct:+.2f}%", delta_color="inverse")
     with row_bh[2]:
-        st.metric(
-            label="年化波動率（Buy&Hold）",
-            value=f"{vol_bh:.2%}" if not np.isnan(vol_bh) else "—",
-            delta=f"較 LRS {-vol_delta_pct:+.2f}%",
-            delta_color="inverse"
-        )
-
+        st.metric(label="年化波動率（Buy&Hold）", value=format_percent(vol_bh), delta=f"較 LRS {-vol_delta_pct:+.2f}%", delta_color="inverse")
     with row_bh[3]:
-        st.metric(
-            label="最大回撤（Buy&Hold）",
-            value=f"{mdd_bh:.2%}" if not np.isnan(mdd_bh) else "—",
-            delta=f"較 LRS {-mdd_delta_pct:+.2f}%",
-            delta_color="inverse"
-        )
+        st.metric(label="最大回撤（Buy&Hold）", value=format_percent(mdd_bh), delta=f"較 LRS {-mdd_delta_pct:+.2f}%", delta_color="inverse")
+
+    # 進一步的對比表格 + 條形圖
+    st.markdown("<h3 style='margin-top:1em;'>📊 指標總覽</h3>", unsafe_allow_html=True)
+    summary_df = pd.DataFrame(
+        {
+            "策略": ["LRS", "Buy & Hold"],
+            "CAGR": [cagr_lrs, cagr_bh],
+            "年化波動": [vol_lrs, vol_bh],
+            "Sharpe": [sharpe_lrs, sharpe_bh],
+            "Sortino": [sortino_lrs, sortino_bh],
+            "最大回撤": [mdd_lrs, mdd_bh],
+            "交易次數": [buy_count + sell_count, 0],
+            "期末資產": [equity_lrs_final, equity_bh_final],
+        }
+    )
+    summary_df_display = summary_df.copy()
+    summary_df_display["CAGR"] = summary_df_display["CAGR"].apply(format_percent)
+    summary_df_display["年化波動"] = summary_df_display["年化波動"].apply(format_percent)
+    summary_df_display["Sharpe"] = summary_df_display["Sharpe"].map(lambda x: f"{x:.2f}" if not np.isnan(x) else "—")
+    summary_df_display["Sortino"] = summary_df_display["Sortino"].map(lambda x: f"{x:.2f}" if not np.isnan(x) else "—")
+    summary_df_display["最大回撤"] = summary_df_display["最大回撤"].apply(format_percent)
+    summary_df_display["期末資產"] = summary_df_display["期末資產"].apply(format_currency)
+
+    st.dataframe(summary_df_display, use_container_width=True, hide_index=True)
+
+    metric_fig = go.Figure()
+    metric_fig.add_trace(go.Bar(x=["CAGR", "Sharpe", "Sortino"], y=[cagr_lrs * 100, sharpe_lrs, sortino_lrs], name="LRS", marker_color="#27ae60"))
+    metric_fig.add_trace(go.Bar(x=["CAGR", "Sharpe", "Sortino"], y=[cagr_bh * 100, sharpe_bh, sortino_bh], name="Buy&Hold", marker_color="#7f8c8d"))
+    metric_fig.update_layout(
+        barmode="group",
+        template="plotly_white",
+        height=420,
+        yaxis_title="指標值（CAGR 為 %）",
+        legend=dict(orientation="h", y=1.05),
+    )
+    st.plotly_chart(metric_fig, use_container_width=True)
 
 
 
