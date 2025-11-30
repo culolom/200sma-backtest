@@ -1,4 +1,4 @@
-# app.py — LRS 回測系統（台股+美股統一使用 yfinance，含拆股調整 + 完整專業儀表板）
+# app.py — 200sma Strategy 回測系統（台股+美股統一使用 yfinance，含拆股調整 + 完整專業儀表板）
 
 import os
 import re
@@ -27,8 +27,8 @@ matplotlib.rcParams["axes.unicode_minus"] = False
 # ================================
 # Streamlit 頁面設定
 # ================================
-st.set_page_config(page_title="LRS 回測系統", page_icon="📈", layout="wide")
-st.markdown("<h1 style='margin-bottom:0.5em;'>📊 Leverage Rotation Strategy — SMA/EMA 回測系統</h1>", unsafe_allow_html=True)
+st.set_page_config(page_title="200sma Strategy 回測系統", page_icon="📈", layout="wide")
+st.markdown("<h1 style='margin-bottom:0.5em;'>📊 200sma Strategy — SMA 回測系統</h1>", unsafe_allow_html=True)
 
 
 # ================================
@@ -331,7 +331,7 @@ with col3:
 
 col4, col5, col6 = st.columns(3)
 with col4:
-    ma_type = st.selectbox("均線種類", ["SMA", "EMA"])
+    ma_type = st.selectbox("均線種類", ["SMA"], index=0, disabled=True)
 with col5:
     window = st.slider("均線天數", 10, 200, 200, 10)
 with col6:
@@ -358,10 +358,7 @@ if st.button("開始回測 🚀"):
     df["Price"] = df["Price_adj"]
 
     # 均線
-    if ma_type == "SMA":
-        df["MA"] = df["Price"].rolling(window=window).mean()
-    else:
-        df["MA"] = df["Price"].ewm(span=window, adjust=False).mean()
+    df["MA"] = df["Price"].rolling(window=window).mean()
 
     df = df.dropna(subset=["MA"])
     if len(df) == 0:
@@ -394,21 +391,21 @@ if st.button("開始回測 🚀"):
     df["Strategy_Return"] = df["Return"] * df["Position"]
 
     # 資金曲線（以1為起點）
-    df["Equity_LRS"] = 1.0
+    df["Equity_200sma"] = 1.0
     for i in range(1, len(df)):
         if df["Position"].iloc[i - 1] == 1:
-            df.iloc[i, df.columns.get_loc("Equity_LRS")] = df["Equity_LRS"].iloc[i - 1] * (1 + df["Return"].iloc[i])
+            df.iloc[i, df.columns.get_loc("Equity_200sma")] = df["Equity_200sma"].iloc[i - 1] * (1 + df["Return"].iloc[i])
         else:
-            df.iloc[i, df.columns.get_loc("Equity_LRS")] = df["Equity_LRS"].iloc[i - 1]
+            df.iloc[i, df.columns.get_loc("Equity_200sma")] = df["Equity_200sma"].iloc[i - 1]
 
     df["Equity_BuyHold"] = (1 + df["Return"]).cumprod()
 
     # 重新裁切使用者區間，歸一化
     df = df.loc[pd.to_datetime(start): pd.to_datetime(end)].copy()
-    df["Equity_LRS"] /= df["Equity_LRS"].iloc[0]
+    df["Equity_200sma"] /= df["Equity_200sma"].iloc[0]
     df["Equity_BuyHold"] /= df["Equity_BuyHold"].iloc[0]
 
-    df["LRS_Capital"] = df["Equity_LRS"] * initial_capital
+    df["Capital_200sma"] = df["Equity_200sma"] * initial_capital
     df["BH_Capital"] = df["Equity_BuyHold"] * initial_capital
 
     # 買賣點
@@ -417,18 +414,18 @@ if st.button("開始回測 🚀"):
     buy_count, sell_count = len(buy_points), len(sell_points)
 
     # 指標
-    final_return_lrs = df["Equity_LRS"].iloc[-1] - 1
+    final_return_200sma = df["Equity_200sma"].iloc[-1] - 1
     final_return_bh = df["Equity_BuyHold"].iloc[-1] - 1
     years_len = (df.index[-1] - df.index[0]).days / 365
-    cagr_lrs = (1 + final_return_lrs) ** (1 / years_len) - 1 if years_len > 0 else np.nan
+    cagr_200sma = (1 + final_return_200sma) ** (1 / years_len) - 1 if years_len > 0 else np.nan
     cagr_bh = (1 + final_return_bh) ** (1 / years_len) - 1 if years_len > 0 else np.nan
-    mdd_lrs = 1 - (df["Equity_LRS"] / df["Equity_LRS"].cummax()).min()
+    mdd_200sma = 1 - (df["Equity_200sma"] / df["Equity_200sma"].cummax()).min()
     mdd_bh = 1 - (df["Equity_BuyHold"] / df["Equity_BuyHold"].cummax()).min()
 
-    vol_lrs, sharpe_lrs, sortino_lrs = calc_metrics(df["Strategy_Return"])
+    vol_200sma, sharpe_200sma, sortino_200sma = calc_metrics(df["Strategy_Return"])
     vol_bh, sharpe_bh, sortino_bh = calc_metrics(df["Return"])
 
-    equity_lrs_final = df["LRS_Capital"].iloc[-1]
+    equity_200sma_final = df["Capital_200sma"].iloc[-1]
     equity_bh_final = df["BH_Capital"].iloc[-1]
 
     # ================================
@@ -445,7 +442,7 @@ if st.button("開始回測 🚀"):
             cols=1,
             shared_xaxes=True,
             vertical_spacing=0.12,
-            subplot_titles=("收盤價與均線（含買賣點）", "資金曲線：LRS vs Buy&Hold"),
+            subplot_titles=("收盤價與均線（含買賣點）", "資金曲線：200sma vs Buy&Hold"),
         )
 
         fig.add_trace(
@@ -487,7 +484,7 @@ if st.button("開始回測 🚀"):
             )
 
         fig.add_trace(
-            go.Scatter(x=df.index, y=df["Equity_LRS"], name="LRS 策略", line=dict(color="#2ecc71", width=3)),
+            go.Scatter(x=df.index, y=df["Equity_200sma"], name="200sma 策略", line=dict(color="#2ecc71", width=3)),
             row=2,
             col=1,
         )
@@ -509,16 +506,16 @@ if st.button("開始回測 🚀"):
 
     # 回撤對比
     with tabs[1]:
-        dd_lrs = (df["Equity_LRS"] / df["Equity_LRS"].cummax() - 1) * 100
+        dd_200sma = (df["Equity_200sma"] / df["Equity_200sma"].cummax() - 1) * 100
         dd_bh = (df["Equity_BuyHold"] / df["Equity_BuyHold"].cummax() - 1) * 100
 
         fig_dd_compare = go.Figure()
         fig_dd_compare.add_trace(
             go.Scatter(
                 x=df.index,
-                y=dd_lrs,
+                y=dd_200sma,
                 mode="lines",
-                name="LRS 回撤",
+                name="200sma 回撤",
                 line=dict(color="#e67e22", width=2.5),
                 fill="tozeroy",
                 fillcolor="rgba(230,126,34,0.08)",
@@ -548,12 +545,12 @@ if st.button("開始回測 🚀"):
     # 雷達圖：風險報酬關鍵指標
     with tabs[2]:
         radar_categories = ["CAGR", "Sharpe", "Sortino", "-MDD", "波動率(反轉)"]
-        radar_lrs = [
-            nz(cagr_lrs),
-            nz(sharpe_lrs),
-            nz(sortino_lrs),
-            nz(-mdd_lrs),
-            nz(-vol_lrs),
+        radar_200sma = [
+            nz(cagr_200sma),
+            nz(sharpe_200sma),
+            nz(sortino_200sma),
+            nz(-mdd_200sma),
+            nz(-vol_200sma),
         ]
         radar_bh = [
             nz(cagr_bh),
@@ -565,7 +562,7 @@ if st.button("開始回測 🚀"):
 
         fig_radar = go.Figure()
         fig_radar.add_trace(
-            go.Scatterpolar(r=radar_lrs, theta=radar_categories, fill="toself", name="LRS", line=dict(color="#27ae60"))
+            go.Scatterpolar(r=radar_200sma, theta=radar_categories, fill="toself", name="200sma", line=dict(color="#27ae60"))
         )
         fig_radar.add_trace(
             go.Scatterpolar(r=radar_bh, theta=radar_categories, fill="toself", name="Buy&Hold", line=dict(color="#7f8c8d"))
@@ -585,7 +582,7 @@ if st.button("開始回測 🚀"):
             go.Histogram(
                 x=df["Strategy_Return"] * 100,
                 nbinsx=50,
-                name="LRS 日報酬",
+                name="200sma 日報酬",
                 marker_color="#2ecc71",
                 opacity=0.7,
             )
@@ -610,47 +607,47 @@ if st.button("開始回測 🚀"):
         st.plotly_chart(fig_hist, use_container_width=True)
 
     # ================================
-    # KPI Summary Cards（LRS vs Buy&Hold）
+    # KPI Summary Cards（200sma vs Buy&Hold）
     # ================================
-    asset_gap_pct = ((equity_lrs_final / equity_bh_final) - 1) * 100 if equity_bh_final != 0 else 0.0
-    cagr_delta_pct = (cagr_lrs - cagr_bh) * 100 if (not np.isnan(cagr_lrs) and not np.isnan(cagr_bh)) else 0.0
-    vol_delta_pct = (vol_lrs - vol_bh) * 100 if (not np.isnan(vol_lrs) and not np.isnan(vol_bh)) else 0.0
-    mdd_delta_pct = (mdd_lrs - mdd_bh) * 100 if (not np.isnan(mdd_lrs) and not np.isnan(mdd_bh)) else 0.0
+    asset_gap_pct = ((equity_200sma_final / equity_bh_final) - 1) * 100 if equity_bh_final != 0 else 0.0
+    cagr_delta_pct = (cagr_200sma - cagr_bh) * 100 if (not np.isnan(cagr_200sma) and not np.isnan(cagr_bh)) else 0.0
+    vol_delta_pct = (vol_200sma - vol_bh) * 100 if (not np.isnan(vol_200sma) and not np.isnan(vol_bh)) else 0.0
+    mdd_delta_pct = (mdd_200sma - mdd_bh) * 100 if (not np.isnan(mdd_200sma) and not np.isnan(mdd_bh)) else 0.0
 
     st.markdown("<h3 style='margin-top:1em;'>🎯 核心指標對比</h3>", unsafe_allow_html=True)
 
-    row_lrs = st.columns(4)
-    with row_lrs[0]:
-        st.metric(label="最終資產（LRS）", value=format_currency(equity_lrs_final), delta=f"較 Buy&Hold {asset_gap_pct:+.2f}%")
-    with row_lrs[1]:
-        st.metric(label="年化報酬（CAGR, LRS）", value=format_percent(cagr_lrs), delta=f"較 Buy&Hold {cagr_delta_pct:+.2f}%")
-    with row_lrs[2]:
-        st.metric(label="年化波動率（LRS）", value=format_percent(vol_lrs), delta=f"較 Buy&Hold {vol_delta_pct:+.2f}%", delta_color="inverse")
-    with row_lrs[3]:
-        st.metric(label="最大回撤（LRS）", value=format_percent(mdd_lrs), delta=f"較 Buy&Hold {mdd_delta_pct:+.2f}%", delta_color="inverse")
+    row_strategy = st.columns(4)
+    with row_strategy[0]:
+        st.metric(label="最終資產（200sma）", value=format_currency(equity_200sma_final), delta=f"較 Buy&Hold {asset_gap_pct:+.2f}%")
+    with row_strategy[1]:
+        st.metric(label="年化報酬（CAGR, 200sma）", value=format_percent(cagr_200sma), delta=f"較 Buy&Hold {cagr_delta_pct:+.2f}%")
+    with row_strategy[2]:
+        st.metric(label="年化波動率（200sma）", value=format_percent(vol_200sma), delta=f"較 Buy&Hold {vol_delta_pct:+.2f}%", delta_color="inverse")
+    with row_strategy[3]:
+        st.metric(label="最大回撤（200sma）", value=format_percent(mdd_200sma), delta=f"較 Buy&Hold {mdd_delta_pct:+.2f}%", delta_color="inverse")
 
     row_bh = st.columns(4)
     with row_bh[0]:
-        st.metric(label="最終資產（Buy&Hold）", value=format_currency(equity_bh_final), delta=f"較 LRS {-asset_gap_pct:+.2f}%", delta_color="inverse")
+        st.metric(label="最終資產（Buy&Hold）", value=format_currency(equity_bh_final), delta=f"較 200sma {-asset_gap_pct:+.2f}%", delta_color="inverse")
     with row_bh[1]:
-        st.metric(label="年化報酬（CAGR, Buy&Hold）", value=format_percent(cagr_bh), delta=f"較 LRS {-cagr_delta_pct:+.2f}%", delta_color="inverse")
+        st.metric(label="年化報酬（CAGR, Buy&Hold）", value=format_percent(cagr_bh), delta=f"較 200sma {-cagr_delta_pct:+.2f}%", delta_color="inverse")
     with row_bh[2]:
-        st.metric(label="年化波動率（Buy&Hold）", value=format_percent(vol_bh), delta=f"較 LRS {-vol_delta_pct:+.2f}%", delta_color="inverse")
+        st.metric(label="年化波動率（Buy&Hold）", value=format_percent(vol_bh), delta=f"較 200sma {-vol_delta_pct:+.2f}%", delta_color="inverse")
     with row_bh[3]:
-        st.metric(label="最大回撤（Buy&Hold）", value=format_percent(mdd_bh), delta=f"較 LRS {-mdd_delta_pct:+.2f}%", delta_color="inverse")
+        st.metric(label="最大回撤（Buy&Hold）", value=format_percent(mdd_bh), delta=f"較 200sma {-mdd_delta_pct:+.2f}%", delta_color="inverse")
 
     # 進一步的對比表格 + 條形圖
     st.markdown("<h3 style='margin-top:1em;'>📊 指標總覽</h3>", unsafe_allow_html=True)
     summary_df = pd.DataFrame(
         {
-            "策略": ["LRS", "Buy & Hold"],
-            "CAGR": [cagr_lrs, cagr_bh],
-            "年化波動": [vol_lrs, vol_bh],
-            "Sharpe": [sharpe_lrs, sharpe_bh],
-            "Sortino": [sortino_lrs, sortino_bh],
-            "最大回撤": [mdd_lrs, mdd_bh],
+            "策略": ["200sma", "Buy & Hold"],
+            "CAGR": [cagr_200sma, cagr_bh],
+            "年化波動": [vol_200sma, vol_bh],
+            "Sharpe": [sharpe_200sma, sharpe_bh],
+            "Sortino": [sortino_200sma, sortino_bh],
+            "最大回撤": [mdd_200sma, mdd_bh],
             "交易次數": [buy_count + sell_count, 0],
-            "期末資產": [equity_lrs_final, equity_bh_final],
+            "期末資產": [equity_200sma_final, equity_bh_final],
         }
     )
     summary_df_display = summary_df.copy()
@@ -664,7 +661,7 @@ if st.button("開始回測 🚀"):
     st.dataframe(summary_df_display, use_container_width=True, hide_index=True)
 
     metric_fig = go.Figure()
-    metric_fig.add_trace(go.Bar(x=["CAGR", "Sharpe", "Sortino"], y=[cagr_lrs * 100, sharpe_lrs, sortino_lrs], name="LRS", marker_color="#27ae60"))
+    metric_fig.add_trace(go.Bar(x=["CAGR", "Sharpe", "Sortino"], y=[cagr_200sma * 100, sharpe_200sma, sortino_200sma], name="200sma", marker_color="#27ae60"))
     metric_fig.add_trace(go.Bar(x=["CAGR", "Sharpe", "Sortino"], y=[cagr_bh * 100, sharpe_bh, sortino_bh], name="Buy&Hold", marker_color="#7f8c8d"))
     metric_fig.update_layout(
         barmode="group",
