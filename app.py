@@ -727,17 +727,16 @@ if st.button("開始回測 🚀"):
             <div class="saas-value">越大越好（每承擔 1 單位風險可換多少報酬）</div>
     
             <div class="saas-key">Sortino Ratio</div>
-            <div class="saas-value">越大越好（只計算下跌風險，更反映策略穩定度）</div>
+            <div class="saas-value">越大越好（只計算下跌風險，更能反映策略穩定度）</div>
     
             <div class="saas-key">最大回撤（MDD）</div>
             <div class="saas-value">越小越好（越抗跌、越安全）</div>
     
             <div class="saas-key">交易次數</div>
-            <div class="saas-value">中性指標（多＝較敏感、少＝較省心）</div>
+            <div class="saas-value">中性指標（多＝敏感、少＝省心）</div>
     
             <div class="saas-key">期末資產</div>
             <div class="saas-value">越多越好（策略最終成果）</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
-    
