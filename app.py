@@ -569,7 +569,7 @@ if st.button("開始回測 🚀"):
     # ================================
     # LRS vs Buy & Hold 回撤比較圖
     # ================================
-    st.markdown("### 📉 回撤比較（LRS vs Buy & Hold）")
+    
     
     # 計算回撤（Drawdown）
     dd_lrs = (df["Equity_LRS"] / df["Equity_LRS"].cummax() - 1) * 100
