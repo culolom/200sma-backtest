@@ -832,12 +832,54 @@ if st.button("開始回測 🚀"):
 
 
     # ================================
-    # 12）回撤分析表（含修復天數）
+    # 12）回撤視覺化 + 風險摘要
     # ================================
-    st.markdown("## 📉 回撤分析表")
+    st.markdown("## 📉 回撤分析")
+
+    dd_series = (df["Equity_LRS"] / df["Equity_LRS"].cummax() - 1) * 100
+
+    dd_fig = go.Figure()
+    dd_fig.add_trace(
+        go.Scatter(
+            x=df.index,
+            y=dd_series,
+            fill="tozeroy",
+            mode="lines",
+            name="回撤 (%)",
+            line=dict(color="#ff7f7f"),
+        )
+    )
+    dd_fig.update_layout(
+        height=420,
+        template="plotly_white",
+        yaxis_title="回撤 (%)",
+        xaxis_title="日期",
+    )
+    st.plotly_chart(dd_fig, use_container_width=True)
 
     dd_records = extract_drawdown_periods(df["Equity_LRS"])
+
     if dd_records:
+        drop_days = [r["跌幅天數"] for r in dd_records if r.get("跌幅天數") is not None]
+        recovery_days = [r["修復天數"] for r in dd_records if r.get("修復天數") is not None]
+
+        max_drop_days = max(drop_days) if drop_days else None
+        max_recovery_days = max(recovery_days) if recovery_days else None
+        avg_drop_days = np.mean(drop_days) if drop_days else np.nan
+        avg_recovery_days = np.mean(recovery_days) if recovery_days else np.nan
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("最大跌幅天數", f"{max_drop_days} 天" if max_drop_days is not None else "—")
+        c2.metric("最大修復天數", f"{max_recovery_days} 天" if max_recovery_days is not None else "—")
+        c3.metric(
+            "平均跌幅天數",
+            f"{avg_drop_days:.1f} 天" if not np.isnan(avg_drop_days) else "—",
+        )
+        c4.metric(
+            "平均修復天數",
+            f"{avg_recovery_days:.1f} 天" if not np.isnan(avg_recovery_days) else "—",
+        )
+
         dd_df = pd.DataFrame(dd_records)
         dd_df = dd_df.sort_values("最大回撤", ascending=False)
         dd_df["最大回撤"] = dd_df["最大回撤"].apply(lambda x: f"{x:.2%}")
