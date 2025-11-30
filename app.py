@@ -676,37 +676,38 @@ if st.button("開始回測 🚀"):
     # ================================
     st.markdown("""
     <style>
-    .metric-note {
-        margin-top: 18px;
-        padding: 14px 18px;
-        border: 1px solid rgba(255,255,255,0.12);
-        border-radius: 8px;
+    .info-card {
+        margin-top: 20px;
+        padding: 20px 24px;
         background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 12px;
         font-size: 15px;
         line-height: 1.7;
     }
-    .metric-note b {
-        color: #ffffffdd;
+    .info-card-title {
+        font-size: 17px;
+        font-weight: 600;
+        margin-bottom: 10px;
     }
-    .metric-note hr {
-        border: none;
-        border-top: 1px solid rgba(255,255,255,0.12);
-        margin: 8px 0 14px 0;
+    .info-line {
+        margin: 2px 0;
     }
     </style>
     
-    <div class="metric-note">
-    <b>📘 指標說明</b>
-    <hr>
-    <b>CAGR</b>：越大越好  
-    <b>年化波動</b>：越小越好  
-    <b>Sharpe</b>：越大越好  
-    <b>Sortino</b>：越大越好  
-    <b>最大回撤（MDD）</b>：越小越好  
-    <b>交易次數</b>：中性（多＝敏感、少＝省心）  
-    <b>期末資產</b>：越多越好  
+    <div class="info-card">
+        <div class="info-card-title">📘 指標說明</div>
+    
+        <div class="info-line"><b>CAGR</b>：越大越好</div>
+        <div class="info-line"><b>年化波動</b>：越小越好</div>
+        <div class="info-line"><b>Sharpe</b>：越大越好</div>
+        <div class="info-line"><b>Sortino</b>：越大越好</div>
+        <div class="info-line"><b>最大回撤（MDD）</b>：越小越好</div>
+        <div class="info-line"><b>交易次數</b>：中性（多＝敏感、少＝省心）</div>
+        <div class="info-line"><b>期末資產</b>：越多越好</div>
     </div>
     """, unsafe_allow_html=True)
+
     
     
 
