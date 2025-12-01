@@ -10,14 +10,38 @@ Auto-update price CSVs (append-only, very fast)
 from __future__ import annotations
 from pathlib import Path
 from datetime import datetime, timedelta
+import re
 
 import pandas as pd
 import yfinance as yf
 
 
+# -----------------------------------------------------
+# Paths & Config
+# -----------------------------------------------------
 DATA_DIR = Path("data")
 SYMBOLS_FILE = Path("symbols.txt")
 REQUIRED_COLUMNS = ["Open", "High", "Low", "Close", "Volume"]
+
+
+# -----------------------------------------------------
+# Normalize symbol
+#   - 台股：0050, 2330, 00878, 00631L → 加上 .TW
+#   - 其它（QQQ, SPY...）維持不變
+# -----------------------------------------------------
+def normalize_symbol(sym: str) -> str:
+    s = sym.strip().upper()
+
+    # 已經有 .TW → 不動
+    if s.endswith(".TW"):
+        return s
+
+    # 純數字或「數字+字母」視為台股，補 .TW
+    if re.match(r"^\d+[A-Z]*$", s):
+        return s + ".TW"
+
+    # 其它當海外商品
+    return s
 
 
 # -----------------------------------------------------
@@ -68,6 +92,9 @@ def download_new_rows(symbol: str, start_date: datetime) -> pd.DataFrame:
 # Update single symbol CSV
 # -----------------------------------------------------
 def update_symbol(symbol: str):
+    """
+    symbol: 已經 normalize 過的（例如 0050.TW）
+    """
     DATA_DIR.mkdir(exist_ok=True)
 
     existing = load_existing(symbol)
@@ -80,7 +107,7 @@ def update_symbol(symbol: str):
 
         df = yf.download(
             symbol,
-            period="max",          # ⬅⬅ 抓完整歷史資料
+            period="max",          # 抓到 yfinance 能提供的最長歷史
             auto_adjust=False,
             progress=False,
         )
@@ -107,7 +134,7 @@ def update_symbol(symbol: str):
 
     print(f"📄 Existing CSV for {symbol}: last date = {last_date.date()}")
 
-    # Already up-to-date
+    # 已經更新到今天之後，就不用再抓
     if fetch_from.date() > datetime.today().date():
         print(f"⏭ {symbol} already up-to-date")
         return
@@ -135,13 +162,18 @@ def load_symbols() -> list[str]:
         raise FileNotFoundError("❌ symbols.txt not found! Place it in repo root.")
 
     with open(SYMBOLS_FILE, "r", encoding="utf-8") as f:
-        symbols = [
+        raw = [
             line.strip()
             for line in f.readlines()
             if line.strip() and not line.startswith("#")
         ]
 
-    print(f"📘 Loaded {len(symbols)} symbols from symbols.txt")
+    symbols = [normalize_symbol(s) for s in raw]
+
+    print("📘 Loaded symbols from symbols.txt:")
+    for r, n in zip(raw, symbols):
+        print(f"  - {r}  →  {n}")
+
     return symbols
 
 
@@ -152,9 +184,9 @@ def main():
     symbols = load_symbols()
 
     for sym in symbols:
-        print(f"\n==============================")
+        print("\n==============================")
         print(f"     Processing {sym}")
-        print(f"==============================")
+        print("==============================")
 
         try:
             update_symbol(sym)
