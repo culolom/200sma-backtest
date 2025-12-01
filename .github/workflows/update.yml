@@ -1,0 +1,33 @@
+name: Update CSV Data
+
+on:
+  schedule:
+    - cron: "0 22 * * *"   # 台灣時間早上 6 點（UTC+8）
+  workflow_dispatch:       # 可以手動按「Run workflow」
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: pip install yfinance pandas
+
+      - name: Run update script
+        run: python scripts/update_csv.py
+
+      - name: Commit and Push changes
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add data/*.csv
+          git commit -m "Auto update CSV data $(date '+%Y-%m-%d')" || echo "No changes"
+          git push
