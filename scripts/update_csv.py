@@ -9,14 +9,38 @@ Auto-update price CSVs (append-only, very fast)
 from __future__ import annotations
 from pathlib import Path
 from datetime import datetime, timedelta
+import re
 
 import pandas as pd
 import yfinance as yf
 
 
+# -------------------------------
+# Paths & Config
+# -------------------------------
 DATA_DIR = Path("data")
 SYMBOLS_FILE = Path("symbols.txt")
 REQUIRED_COLUMNS = ["Open", "High", "Low", "Close", "Volume"]
+
+
+# -------------------------------
+# Normalize Symbols
+#  - 台股自動補 .TW
+#  - 美股不影響
+# -------------------------------
+def normalize_symbol(sym: str) -> str:
+    s = sym.strip().upper()
+
+    # 原本就有 .TW 不動
+    if s.endswith(".TW"):
+        return s
+
+    # 台股格式：純數字 / 數字+字母（像 00631L）
+    if re.match(r"^\d+[A-Z]*$", s):
+        return s + ".TW"
+
+    # 美股代碼不變
+    return s
 
 
 # -------------------------------
@@ -37,7 +61,7 @@ def load_existing(symbol: str) -> pd.DataFrame | None:
 
 
 # -------------------------------
-# Download only missing dates
+# Download only missing rows
 # -------------------------------
 def download_new_rows(symbol: str, start_date: datetime) -> pd.DataFrame:
     end_date = datetime.today() + timedelta(days=1)
@@ -55,7 +79,6 @@ def download_new_rows(symbol: str, start_date: datetime) -> pd.DataFrame:
     if df.empty:
         return df
 
-    # Flatten MultiIndex
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
 
@@ -65,7 +88,7 @@ def download_new_rows(symbol: str, start_date: datetime) -> pd.DataFrame:
 
 
 # -------------------------------
-# Main single-symbol update
+# Update a single symbol
 # -------------------------------
 def update_symbol(symbol: str):
     DATA_DIR.mkdir(exist_ok=True)
@@ -74,27 +97,28 @@ def update_symbol(symbol: str):
 
     # First-time download
     if existing is None:
-        print(f"📦 No CSV found for {symbol}, downloading full history...")
+        print(f"📦 No CSV for {symbol}, downloading full history...")
+
         df = yf.download(symbol, auto_adjust=False, progress=False)
-
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.get_level_values(0)
-
         if df.empty:
             print(f"❌ FAILED: no data for {symbol}")
             return
 
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+
         df = df[REQUIRED_COLUMNS]
         df.index.name = "Date"
         df.to_csv(DATA_DIR / f"{symbol}.csv")
-        print(f"✅ Saved fresh CSV for {symbol} ({len(df)} rows)")
+
+        print(f"✅ Created full CSV for {symbol} ({len(df)} rows)")
         return
 
-    # Append mode
+    # Append missing days
     last_date = existing.index.max()
     fetch_from = last_date + timedelta(days=1)
 
-    print(f"📄 Existing: {symbol} last = {last_date.date()}")
+    print(f"📄 Existing {symbol}: last date = {last_date.date()}")
 
     if fetch_from.date() > datetime.today().date():
         print(f"⏭ {symbol} already up-to-date")
@@ -111,6 +135,7 @@ def update_symbol(symbol: str):
     merged = merged.sort_index()
 
     merged.to_csv(DATA_DIR / f"{symbol}.csv")
+
     print(f"✅ Updated {symbol}: +{len(new_rows)} rows")
 
 
@@ -119,21 +144,23 @@ def update_symbol(symbol: str):
 # -------------------------------
 def load_symbols() -> list[str]:
     if not SYMBOLS_FILE.exists():
-        raise FileNotFoundError("❌ symbols.txt not found! Create it in repo root.")
+        raise FileNotFoundError("❌ symbols.txt not found!")
 
     with open(SYMBOLS_FILE, "r", encoding="utf-8") as f:
-        symbols = [
+        symbols_raw = [
             line.strip()
             for line in f.readlines()
             if line.strip() and not line.startswith("#")
         ]
+
+    symbols = [normalize_symbol(s) for s in symbols_raw]
 
     print(f"📘 Loaded {len(symbols)} symbols from symbols.txt")
     return symbols
 
 
 # -------------------------------
-# Entry Point
+# Entry point
 # -------------------------------
 def main():
     symbols = load_symbols()
